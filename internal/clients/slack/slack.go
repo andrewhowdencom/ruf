@@ -34,13 +34,33 @@ func (c *client) PostMessage(channel, author, subject, text string) (string, str
 		message = fmt.Sprintf("*%s*\n%s", subject, text)
 	}
 
+	// Default message options.
+	options := []slack.MsgOption{
+		slack.MsgOptionText(message, false),
+	}
+
+	// If an author is specified, try to use their profile for the message.
 	if author != "" {
 		user, err := c.api.GetUserByEmail(author)
-		if err != nil {
-			// If the user is not found, fall back to the email address.
-			message = fmt.Sprintf("%s\n\n---\nThx: %s", message, author)
+		if err == nil && user != nil {
+			// User found, customize username and icon.
+			username := user.RealName
+			if username == "" {
+				username = user.Name
+			}
+			options = append(options, slack.MsgOptionUsername(username))
+
+			// Use the highest resolution image available.
+			if user.Profile.ImageOriginal != "" {
+				options = append(options, slack.MsgOptionIconURL(user.Profile.ImageOriginal))
+			} else if user.Profile.Image512 != "" {
+				options = append(options, slack.MsgOptionIconURL(user.Profile.Image512))
+			}
 		} else {
-			message = fmt.Sprintf("%s\n\n---\nThx: @%s", message, user.Name)
+			// User not found, fall back to adding attribution in the message body.
+			message = fmt.Sprintf("%s\n\n---\nThx: %s", message, author)
+			// Overwrite the text option with the updated message.
+			options[0] = slack.MsgOptionText(message, false)
 		}
 	}
 
@@ -49,7 +69,8 @@ func (c *client) PostMessage(channel, author, subject, text string) (string, str
 		return "", "", fmt.Errorf("failed to get channel id: %w", err)
 	}
 
-	_, timestamp, err := c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
+	// Post the message with the specified options.
+	_, timestamp, err := c.api.PostMessage(channelID, options...)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to post message: %w", err)
 	}

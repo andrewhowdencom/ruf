@@ -33,23 +33,48 @@ func NewClient(host string, port int, username, password, from string) Client {
 func (c *SMTPClient) Send(to []string, author, subject, body string) error {
 	var errs []error
 	for _, recipient := range to {
+		// Default headers
 		headers := map[string]string{
 			"To":      recipient,
 			"Subject": subject,
 		}
 
-		from := c.from
-		if author != "" {
-			from = author
-			headers["Reply-To"] = author
+		// Build message body
+		buildMessage := func(hdrs map[string]string) string {
+			msg := ""
+			for k, v := range hdrs {
+				msg += fmt.Sprintf("%s: %s\r\n", k, v)
+			}
+			msg += "\r\n" + body
+			return msg
 		}
-		headers["From"] = from
 
-		msg := ""
-		for k, v := range headers {
-			msg += fmt.Sprintf("%s: %s\r\n", k, v)
+		// If author is present, first attempt to send from author's email.
+		if author != "" {
+			headers["From"] = author
+			headers["Reply-To"] = author
+			msg := buildMessage(headers)
+
+			// Attempt to send with the author's email as the SMTP FROM address.
+			err := smtp.SendMail(c.addr, c.auth, author, []string{recipient}, []byte(msg))
+			if err == nil {
+				continue // Success, move to next recipient
+			}
+			// If sending fails, we'll fall back to the default sender.
+			// We can log this failure if we had a logger. For now, we just proceed.
 		}
-		msg += "\r\n" + body
+
+		// Fallback or default case: send from the configured default address.
+		headers["From"] = c.from
+		// If author was present, Reply-To should still be the author on fallback.
+		if author != "" {
+			headers["Reply-To"] = author
+		} else {
+			// Ensure Reply-To is not set if there's no author
+			delete(headers, "Reply-To")
+		}
+
+		msg := buildMessage(headers)
 
 		err := smtp.SendMail(c.addr, c.auth, c.from, []string{recipient}, []byte(msg))
 		if err != nil {

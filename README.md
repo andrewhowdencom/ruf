@@ -111,6 +111,17 @@ To use this feature, you'll need to define a call with a trigger that has a `seq
 - `delta`: A duration string (e.g., "5m", "1h30m") that specifies when the call should be sent relative to the event's `start_time`.
 - `events`: A new top-level list in your source YAML file that contains a list of events.
 
+### Author Impersonation
+
+When a `Call` includes an `author` email address, `ruf` will attempt to send the message on behalf of that user.
+
+- **Slack**: The message will appear to come from the author, using their Slack profile name and picture. If the user
+  is not found in Slack, the message will be sent by the default bot, with the author's email appended to the message
+  body for attribution.
+- **Email**: The application will first attempt to send the email with the `From` address set to the author's email.
+  If the configured SMTP server rejects this (due to security policies like SPF/DKIM), it will fall back to sending
+  from the default configured sender address, but will set the `Reply-To` header to the author's email.
+
 ### Example
 
 ```yaml

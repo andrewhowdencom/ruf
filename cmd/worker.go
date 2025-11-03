@@ -9,7 +9,6 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
 	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/poller"
-	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,16 +22,6 @@ var workerCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWorker()
 	},
-}
-
-func buildSourcer() sourcer.Sourcer {
-	fetcher := sourcer.NewCompositeFetcher()
-	fetcher.AddFetcher("http", sourcer.NewHTTPFetcher())
-	fetcher.AddFetcher("https", sourcer.NewHTTPFetcher())
-	fetcher.AddFetcher("file", sourcer.NewFileFetcher())
-	fetcher.AddFetcher("git", sourcer.NewGitFetcher())
-	parser := sourcer.NewYAMLParser()
-	return sourcer.NewSourcer(fetcher, parser)
 }
 
 func runWorker() error {

@@ -1,0 +1,58 @@
+# This is an example configuration file for ruf.
+#
+# You can use this file as a starting point for your own configuration.
+# The configuration file is located at $XDG_CONFIG_HOME/ruf/config.yaml by default.
+# You can also specify a different configuration file using the --config flag.
+
+# log controls the logging level of the application.
+log:
+  # level can be one of: debug, info, warn, error
+  level: info
+
+# email contains the configuration for the email client.
+email:
+  # host is the SMTP server to use.
+  host: <smtp.example.com>
+  # port is the port to use for the SMTP server.
+  port: 587
+  # username is the username to use for authentication.
+  username: <username>
+  # password is the password to use for authentication.
+  password: <password>
+  # from is the email address to send emails from.
+  from: <ruf@example.com>
+
+# git contains the configuration for the git client.
+git:
+  # auth contains the authentication tokens for git repositories.
+  # The key is the hostname of the git repository, and the value is a map containing the token.
+  # For example, to authenticate with github.com, you would use:
+  # auth:
+  #   github.com:
+  #     token: <your_personal_access_token>
+  auth: {}
+
+# slack contains the configuration for the slack client.
+slack:
+  app:
+    # token is the Slack App token to use for authentication.
+    # It should start with "xoxb-".
+    token: <your_slack_app_token>
+
+# worker contains the configuration for the worker.
+worker:
+  # interval is the interval at which the worker will poll for new calls.
+  interval: 1m
+  # lookback_period is the period to look back for calls that have not been sent.
+  lookback_period: 24h
+
+# source contains the configuration for the source of calls.
+source:
+  # urls is a list of URLs to fetch calls from.
+  # Supported schemes are: http, https, file, git.
+  # For example:
+  # urls:
+  #   - https://example.com/calls.yaml
+  #   - file:///path/to/calls.yaml
+  #   - git://github.com/user/repo/tree/main/calls.yaml
+  urls: []

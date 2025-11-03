@@ -64,7 +64,11 @@ calls:
   destinations:
     - type: "slack"
       to:
-        - "C1234567890"
+        - "#general" # a public channel
+        - "user@example.com" # a direct message to a user, found by email
+    - type: "email"
+      to:
+        - "user@example.com"
   triggers:
     - scheduled_at: "2025-01-01T12:00:00Z"
 - id: "unique-id-2"
@@ -73,7 +77,7 @@ calls:
   destinations:
     - type: "slack"
       to:
-        - "C1234567890"
+        - "#general"
   triggers:
     - cron: "0 * * * *"
       recurring: true

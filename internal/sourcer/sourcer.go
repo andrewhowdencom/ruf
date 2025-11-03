@@ -4,13 +4,15 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 
 	"github.com/andrewhowdencom/ruf/internal/model"
-	"gopkg.in/yaml.v3"
+	"github.com/ghodss/yaml"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 // Source represents a source file.
@@ -128,15 +130,46 @@ type Parser interface {
 }
 
 // YAMLParser is an implementation of Parser that parses YAML content.
-type YAMLParser struct{}
+type YAMLParser struct {
+	schemaLoader gojsonschema.JSONLoader
+}
 
 // NewYAMLParser creates a new YAMLParser.
-func NewYAMLParser() *YAMLParser {
-	return &YAMLParser{}
+func NewYAMLParser(schemaPath string) (*YAMLParser, error) {
+	schemaLoader := gojsonschema.NewReferenceLoader(fmt.Sprintf("file://%s", schemaPath))
+	_, err := schemaLoader.LoadJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load schema: %w", err)
+	}
+
+	return &YAMLParser{
+		schemaLoader: schemaLoader,
+	}, nil
 }
 
 // Parse parses a YAML byte slice and returns a list of calls.
 func (p *YAMLParser) Parse(rawURL string, data []byte) (*Source, error) {
+	// Convert YAML to JSON, as gojsonschema only works with JSON
+	jsonData, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert yaml to json: %w", err)
+	}
+
+	documentLoader := gojsonschema.NewBytesLoader(jsonData)
+
+	result, err := gojsonschema.Validate(p.schemaLoader, documentLoader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate document: %w", err)
+	}
+
+	if !result.Valid() {
+		log.Printf("document '%s' is not valid:", rawURL)
+		for _, desc := range result.Errors() {
+			log.Printf("- %s", desc)
+		}
+		return nil, nil // Returning nil, nil to skip the file
+	}
+
 	var s Source
 	if err := yaml.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
@@ -206,6 +239,11 @@ func (s *sourcer) Source(url string) (*Source, string, error) {
 	source, err := s.parser.Parse(url, data)
 	if err != nil {
 		return nil, "", err
+	}
+
+	// If the source is nil, it means the document was invalid and should be skipped.
+	if source == nil {
+		return nil, "", nil
 	}
 
 	return source, state, nil

@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Ruf Call Configuration",
+  "description": "Schema for ruf call configuration files.",
+  "type": "object",
+  "properties": {
+    "campaign": {
+      "$ref": "#/definitions/Campaign"
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Call"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Event"
+      }
+    }
+  },
+  "definitions": {
+    "Campaign": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "name"]
+    },
+    "Call": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "destinations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Destination"
+          }
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Trigger"
+          }
+        }
+      },
+      "required": ["id", "content", "destinations", "triggers"]
+    },
+    "Destination": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["type", "to"]
+    },
+    "Trigger": {
+      "type": "object",
+      "properties": {
+        "scheduled_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cron": {
+          "type": "string"
+        },
+        "recurring": {
+          "type": "boolean"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "string"
+        }
+      }
+    },
+    "Event": {
+      "type": "object",
+      "properties": {
+        "destinations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Destination"
+          }
+        },
+        "sequence": {
+          "type": "string"
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["sequence", "start_time"]
+    }
+  }
+}

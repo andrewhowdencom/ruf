@@ -43,7 +43,11 @@ func runWorker() error {
 		viper.GetString("email.from"),
 	)
 
-	s := buildSourcer()
+	s, err := buildSourcer()
+	if err != nil {
+		return fmt.Errorf("failed to build sourcer: %w", err)
+	}
+
 	pollInterval := viper.GetDuration("worker.interval")
 	if pollInterval == 0 {
 		pollInterval = 1 * time.Minute

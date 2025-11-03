@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,54 @@ func TestCompositeFetcher(t *testing.T) {
 }
 
 func TestYAMLParser(t *testing.T) {
+	schema := `{
+		"$schema": "http://json-schema.org/draft-07/schema#",
+		"title": "Ruf Call Configuration",
+		"type": "object",
+		"properties": {
+			"campaign": {
+				"$ref": "#/definitions/Campaign"
+			},
+			"calls": {
+				"type": "array",
+				"items": {
+					"$ref": "#/definitions/Call"
+				}
+			}
+		},
+		"definitions": {
+			"Campaign": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string" }
+				}
+			},
+			"Call": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"subject": { "type": "string" },
+					"content": { "type": "string" },
+					"destinations": { "type": "array" },
+					"triggers": { "type": "array" }
+				},
+				"required": ["id", "content", "destinations", "triggers"]
+			}
+		}
+	}`
+
+	tmpDir, err := os.MkdirTemp("", "test-schema")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	schemaPath := filepath.Join(tmpDir, "schema.json")
+	err = os.WriteFile(schemaPath, []byte(schema), 0644)
+	assert.NoError(t, err)
+
+	parser, err := NewYAMLParser(schemaPath)
+	assert.NoError(t, err)
+
 	// Test with campaign
 	yamlWithCampaign := `
 campaign:
@@ -56,10 +105,12 @@ calls:
   - id: "test-call"
     subject: "Test Subject"
     content: "Test Content"
+    destinations: []
+    triggers: []
 `
-	parser := NewYAMLParser()
 	source, err := parser.Parse("file:///test.yaml", []byte(yamlWithCampaign))
 	assert.NoError(t, err)
+	assert.NotNil(t, source)
 	assert.Len(t, source.Calls, 1)
 	assert.Equal(t, "test-campaign", source.Calls[0].Campaign.ID)
 	assert.Equal(t, "Test Campaign", source.Calls[0].Campaign.Name)
@@ -70,10 +121,24 @@ calls:
   - id: "test-call"
     subject: "Test Subject"
     content: "Test Content"
+    destinations: []
+    triggers: []
 `
 	source, err = parser.Parse("file:///test.yaml", []byte(yamlWithoutCampaign))
 	assert.NoError(t, err)
+	assert.NotNil(t, source)
 	assert.Len(t, source.Calls, 1)
 	assert.Equal(t, "test", source.Calls[0].Campaign.ID)
 	assert.Equal(t, "/test.yaml", source.Calls[0].Campaign.Name)
+
+	// Test with an invalid file (missing required 'content' field)
+	invalidYAML := `
+calls:
+  - id: "test-call"
+    destinations: []
+    triggers: []
+`
+	source, err = parser.Parse("file:///invalid.yaml", []byte(invalidYAML))
+	assert.NoError(t, err)
+	assert.Nil(t, source)
 }

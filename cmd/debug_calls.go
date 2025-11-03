@@ -14,7 +14,10 @@ var debugCallsCmd = &cobra.Command{
 	Short: "List all scheduled calls from all sources.",
 	Long:  `List all scheduled calls from all sources.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := buildSourcer()
+		s, err := buildSourcer()
+		if err != nil {
+			return fmt.Errorf("failed to build sourcer: %w", err)
+		}
 
 		urls := viper.GetStringSlice("source.urls")
 		var allCalls []*model.Call
@@ -23,6 +26,9 @@ var debugCallsCmd = &cobra.Command{
 			source, _, err := s.Source(url)
 			if err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Error sourcing from %s: %v\n", url, err)
+				continue
+			}
+			if source == nil {
 				continue
 			}
 			for i := range source.Calls {

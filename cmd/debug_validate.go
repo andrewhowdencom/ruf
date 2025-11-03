@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/andrewhowdencom/ruf/internal/model"
@@ -25,12 +27,24 @@ var debugValidateCmd = &cobra.Command{
 		fetcher.AddFetcher("file", sourcer.NewFileFetcher())
 		// Not including git fetcher for now, as it requires more configuration
 
-		parser := sourcer.NewYAMLParser()
+		// Get the path to the current source file, and then find the schema file relative to that.
+		_, b, _, _ := runtime.Caller(0)
+		basepath := filepath.Dir(b)
+		schemaPath := filepath.Join(basepath, "..", "schema", "calls.json")
+
+		parser, err := sourcer.NewYAMLParser(schemaPath)
+		if err != nil {
+			return fmt.Errorf("failed to create parser: %w", err)
+		}
 		s := sourcer.NewSourcer(fetcher, parser)
 
 		source, _, err := s.Source(uri)
 		if err != nil {
 			return err
+		}
+
+		if source == nil {
+			return nil
 		}
 
 		// Create a slice of pointers for validation

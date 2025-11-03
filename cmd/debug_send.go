@@ -24,7 +24,10 @@ var sendCmd = &cobra.Command{
 		dest, _ := cmd.Flags().GetString("destination")
 		destType, _ := cmd.Flags().GetString("type")
 
-		s := buildSourcer()
+		s, err := buildSourcer()
+		if err != nil {
+			return fmt.Errorf("failed to build sourcer: %w", err)
+		}
 		urls := viper.GetStringSlice("source.urls")
 		var selectedCall *model.Call
 
@@ -32,6 +35,10 @@ var sendCmd = &cobra.Command{
 			source, _, err := s.Source(url)
 			if err != nil {
 				return fmt.Errorf("could not source calls from %s: %w", url, err)
+			}
+
+			if source == nil {
+				continue
 			}
 
 			for i := range source.Calls {

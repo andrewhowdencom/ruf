@@ -37,8 +37,6 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/ruf/config.yaml)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
@@ -51,8 +49,8 @@ func init() {
 	viper.SetDefault("git.tokens", map[string]string{})
 }
 
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
+// InitConfig reads in config file and ENV variables if set.
+func InitConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)

@@ -9,7 +9,6 @@ require (
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/gomarkdown/markdown v0.0.0-20250810172220-2e2c11897d1a
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
-	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/slack-go/slack v0.17.3
@@ -18,6 +17,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.etcd.io/bbolt v1.4.3
+	golang.org/x/net v0.39.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -57,14 +57,12 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

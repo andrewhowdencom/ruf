@@ -49,6 +49,8 @@ func init() {
 	viper.SetDefault("email.password", "")
 	viper.SetDefault("email.from", "")
 	viper.SetDefault("git.tokens", map[string]string{})
+	viper.SetDefault("datastore.type", "bbolt")
+	viper.SetDefault("datastore.project_id", "")
 
 	rootCmd.PersistentFlags().String("otel-endpoint", "", "OpenTelemetry endpoint")
 	viper.BindPFlag("otel.endpoint", rootCmd.PersistentFlags().Lookup("otel-endpoint"))

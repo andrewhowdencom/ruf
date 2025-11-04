@@ -7,6 +7,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
 	"github.com/andrewhowdencom/ruf/internal/datastore"
+	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
@@ -152,7 +153,7 @@ func TestWorker_RunTickWithOldCall(t *testing.T) {
 	sentMessages, err := store.ListSentMessages()
 	assert.NoError(t, err)
 	assert.Len(t, sentMessages, 1)
-	assert.Equal(t, datastore.StatusFailed, sentMessages[0].Status)
+	assert.Equal(t, kv.StatusFailed, sentMessages[0].Status)
 	assert.Equal(t, "Mock Campaign", sentMessages[0].CampaignName)
 }
 
@@ -169,10 +170,10 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 	scheduledAt := time.Now().Add(-1 * time.Minute).UTC()
 
 	// Add a deleted message to the store
-	err := store.AddSentMessage("mock-campaign", "1:scheduled_at:"+scheduledAt.Format(time.RFC3339), &datastore.SentMessage{
+	err := store.AddSentMessage("mock-campaign", "1:scheduled_at:"+scheduledAt.Format(time.RFC3339), &kv.SentMessage{
 		SourceID:    "1",
 		ScheduledAt: scheduledAt,
-		Status:      datastore.StatusDeleted,
+		Status:      kv.StatusDeleted,
 		Type:        "slack",
 		Destination: "test-channel",
 	})

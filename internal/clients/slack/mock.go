@@ -1,8 +1,10 @@
 package slack
 
+import "github.com/andrewhowdencom/ruf/internal/model"
+
 // MockClient is a mock implementation of the Client interface for testing.
 type MockClient struct {
-	PostMessageFunc   func(channel, author, subject, text string) (string, string, error)
+	PostMessageFunc   func(channel, author, subject, text string, campaign model.Campaign) (string, string, error)
 	NotifyAuthorFunc  func(authorEmail, channelId, messageTimestamp, channelName string) error
 	DeleteMessageFunc func(channel, timestamp string) error
 	GetChannelIDFunc  func(channelName string) (string, error)
@@ -14,7 +16,7 @@ type MockClient struct {
 // NewMockClient creates a new MockClient.
 func NewMockClient() *MockClient {
 	return &MockClient{
-		PostMessageFunc: func(channel, author, subject, text string) (string, string, error) {
+		PostMessageFunc: func(channel, author, subject, text string, campaign model.Campaign) (string, string, error) {
 			return "C1234567890", "1234567890.123456", nil
 		},
 		NotifyAuthorFunc: func(authorEmail, channelId, messageTimestamp, channelName string) error {
@@ -30,9 +32,9 @@ func NewMockClient() *MockClient {
 }
 
 // PostMessage calls the PostMessageFunc.
-func (m *MockClient) PostMessage(channel, author, subject, text string) (string, string, error) {
+func (m *MockClient) PostMessage(channel, author, subject, text string, campaign model.Campaign) (string, string, error) {
 	m.PostMessageCount++
-	return m.PostMessageFunc(channel, author, subject, text)
+	return m.PostMessageFunc(channel, author, subject, text, campaign)
 }
 
 // NotifyAuthor calls the NotifyAuthorFunc.

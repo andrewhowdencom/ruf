@@ -3,11 +3,13 @@ package email
 import (
 	"fmt"
 	"net/smtp"
+
+	"github.com/andrewhowdencom/ruf/internal/model"
 )
 
 // Client is an interface for sending emails.
 type Client interface {
-	Send(to []string, author, subject, body string) error
+	Send(to []string, author, subject, body string, campaign model.Campaign) error
 }
 
 // SMTPClient is a client for sending emails using SMTP.
@@ -30,13 +32,17 @@ func NewClient(host string, port int, username, password, from string) Client {
 }
 
 // Send sends an email to the specified recipients.
-func (c *SMTPClient) Send(to []string, author, subject, body string) error {
+func (c *SMTPClient) Send(to []string, author, subject, body string, campaign model.Campaign) error {
 	var errs []error
 	for _, recipient := range to {
 		// Default headers
 		headers := map[string]string{
 			"To":      recipient,
 			"Subject": subject,
+		}
+
+		if campaign.Name != "" {
+			headers["Subject"] = fmt.Sprintf("[%s] %s", campaign.Name, subject)
 		}
 
 		// Build message body
@@ -91,7 +97,7 @@ func (c *SMTPClient) Send(to []string, author, subject, body string) error {
 
 // MockClient is a mock implementation of the Client interface.
 type MockClient struct {
-	SendFunc func(to []string, author, subject, body string) error
+	SendFunc func(to []string, author, subject, body string, campaign model.Campaign) error
 }
 
 // NewMockClient returns a new mock client.
@@ -100,9 +106,9 @@ func NewMockClient() *MockClient {
 }
 
 // Send is the mock implementation of the Send method.
-func (m *MockClient) Send(to []string, author, subject, body string) error {
+func (m *MockClient) Send(to []string, author, subject, body string, campaign model.Campaign) error {
 	if m.SendFunc != nil {
-		return m.SendFunc(to, author, subject, body)
+		return m.SendFunc(to, author, subject, body, campaign)
 	}
 	return nil
 }

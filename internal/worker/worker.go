@@ -143,6 +143,12 @@ func (w *Worker) expandCalls(sources []*sourcer.Source) []*model.Call {
 // ensuring that mutable fields like Destinations are deep-copied.
 func (w *Worker) createCallFromDefinition(def model.Call) *model.Call {
 	newCall := def // Start with a shallow copy
+
+	// If the campaign name is empty, set a default.
+	if newCall.Campaign.Name == "" {
+		newCall.Campaign.Name = "announcements"
+	}
+
 	newCall.Destinations = make([]model.Destination, len(def.Destinations))
 	copy(newCall.Destinations, def.Destinations)
 	newCall.Triggers = nil // Triggers are not needed in the expanded call
@@ -228,6 +234,7 @@ func (w *Worker) processCall(call *model.Call) error {
 			switch dest.Type {
 			case "slack":
 				slog.Info("sending slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
+        
 				formattedContent, err := formatter.ToSlack([]byte(content))
 				if err != nil {
 					slog.Error("failed to format content for slack", "error", err)
@@ -242,7 +249,7 @@ func (w *Worker) processCall(call *model.Call) error {
 					continue
 				}
 
-				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, formattedContent)
+				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, formattedContent, call.Campaign)
 				sentMessage := &datastore.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
@@ -273,7 +280,7 @@ func (w *Worker) processCall(call *model.Call) error {
 			case "email":
 				slog.Info("sending email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
 				formattedContent := formatter.ToHTML([]byte(content))
-				err := w.emailClient.Send([]string{to}, call.Author, subject, string(formattedContent))
+				err := w.emailClient.Send([]string{to}, call.Author, subject, string(formattedContent), call.Campaign)
 				sentMessage := &datastore.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,

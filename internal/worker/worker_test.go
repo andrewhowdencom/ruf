@@ -35,7 +35,7 @@ func TestWorker_RunTick(t *testing.T) {
 	// Mock Slack client
 	slackClient := slack.NewMockClient()
 	var capturedSlackAuthor string
-	slackClient.PostMessageFunc = func(channel, author, subject, text string) (string, string, error) {
+	slackClient.PostMessageFunc = func(channel, author, subject, text string, campaign model.Campaign) (string, string, error) {
 		capturedSlackAuthor = author
 		return "C1234567890", "1234567890.123456", nil
 	}
@@ -43,7 +43,7 @@ func TestWorker_RunTick(t *testing.T) {
 	// Mock Email client
 	emailClient := email.NewMockClient()
 	var capturedEmailAuthor string
-	emailClient.SendFunc = func(to []string, author, subject, body string) error {
+	emailClient.SendFunc = func(to []string, author, subject, body string, campaign model.Campaign) error {
 		capturedEmailAuthor = author
 		return nil
 	}

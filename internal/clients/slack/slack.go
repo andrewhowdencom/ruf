@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/slack-go/slack"
 )
 
 // Client is an interface that defines the methods for interacting with the Slack API.
 type Client interface {
-	PostMessage(destination, author, subject, text string) (string, string, error)
+	PostMessage(destination, author, subject, text string, campaign model.Campaign) (string, string, error)
 	NotifyAuthor(authorEmail, channelId, messageTimestamp, channelName string) error
 	DeleteMessage(channel, timestamp string) error
 	GetChannelID(destination string) (string, error)
@@ -28,7 +29,7 @@ func NewClient(token string) Client {
 }
 
 // PostMessage sends a message to a Slack destination.
-func (c *client) PostMessage(destination, author, subject, text string) (string, string, error) {
+func (c *client) PostMessage(destination, author, subject, text string, campaign model.Campaign) (string, string, error) {
 	message := text
 	if subject != "" {
 		message = fmt.Sprintf("*%s*\n%s", subject, text)
@@ -61,6 +62,12 @@ func (c *client) PostMessage(destination, author, subject, text string) (string,
 			message = fmt.Sprintf("%s\n\n---\nThx: %s", message, author)
 			// Overwrite the text option with the updated message.
 			options[0] = slack.MsgOptionText(message, false)
+		}
+	} else if campaign.Name != "" {
+		// If no author is specified, use the campaign name and icon.
+		options = append(options, slack.MsgOptionUsername(campaign.Name))
+		if campaign.IconURL != "" {
+			options = append(options, slack.MsgOptionIconURL(campaign.IconURL))
 		}
 	}
 

@@ -4,12 +4,14 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/adrg/xdg"
+	"github.com/andrewhowdencom/ruf/internal/otel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -37,8 +39,6 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/ruf/config.yaml)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
@@ -49,10 +49,16 @@ func init() {
 	viper.SetDefault("email.password", "")
 	viper.SetDefault("email.from", "")
 	viper.SetDefault("git.tokens", map[string]string{})
+
+	rootCmd.PersistentFlags().String("otel-endpoint", "", "OpenTelemetry endpoint")
+	viper.BindPFlag("otel.endpoint", rootCmd.PersistentFlags().Lookup("otel-endpoint"))
+
+	viper.SetDefault("otel.endpoint", "")
+	viper.SetDefault("otel.headers", map[string]string{})
 }
 
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
+// InitConfig reads in config file and ENV variables if set.
+func InitConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
@@ -93,5 +99,19 @@ func initConfig() {
 		} else {
 			slog.Warn("could not read config file, using defaults", "error", configReadErr)
 		}
+	}
+
+	// Initialise OpenTelemetry
+	if viper.GetString("otel.endpoint") != "" {
+		otelShutdown, err := otel.SetupOTelSDK(context.Background(), viper.GetString("otel.endpoint"), viper.GetStringMapString("otel.headers"))
+		if err != nil {
+			slog.Error("could not setup OpenTelemetry", "error", err)
+			os.Exit(1)
+		}
+		cobra.OnFinalize(func() {
+			if err := otelShutdown(context.Background()); err != nil {
+				slog.Error("could not shutdown OpenTelemetry", "error", err)
+			}
+		})
 	}
 }

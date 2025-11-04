@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
@@ -49,9 +48,6 @@ func runWorker() error {
 	}
 
 	pollInterval := viper.GetDuration("worker.interval")
-	if pollInterval == 0 {
-		pollInterval = 1 * time.Minute
-	}
 	p := poller.New(s, pollInterval)
 
 	w := worker.New(store, slackClient, emailClient, p, pollInterval)
@@ -60,6 +56,6 @@ func runWorker() error {
 
 func init() {
 	rootCmd.AddCommand(workerCmd)
-	viper.SetDefault("worker.interval", "1m")
+	viper.SetDefault("worker.interval", "1h")
 	viper.SetDefault("worker.lookback_period", "24h")
 }

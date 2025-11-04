@@ -3,6 +3,9 @@ package worker
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
@@ -40,6 +43,10 @@ func New(store datastore.Storer, slackClient slack.Client, emailClient email.Cli
 // Run starts the worker.
 func (w *Worker) Run() error {
 	slog.Info("starting worker")
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGHUP)
+
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 
@@ -48,12 +55,20 @@ func (w *Worker) Run() error {
 		slog.Error("error running tick", "error", err)
 	}
 
-	for range ticker.C {
-		if err := w.RunTick(); err != nil {
-			slog.Error("error running tick", "error", err)
+	for {
+		select {
+		case <-ticker.C:
+			if err := w.RunTick(); err != nil {
+				slog.Error("error running tick", "error", err)
+			}
+		case <-signals:
+			slog.Info("SIGHUP received, running poller")
+			ticker.Reset(w.interval)
+			if err := w.RunTick(); err != nil {
+				slog.Error("error running tick", "error", err)
+			}
 		}
 	}
-	return nil
 }
 
 // RunTick performs a single poll for calls and sends them.
@@ -234,7 +249,7 @@ func (w *Worker) processCall(call *model.Call) error {
 			switch dest.Type {
 			case "slack":
 				slog.Info("sending slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
-        
+
 				formattedContent, err := formatter.ToSlack([]byte(content))
 				if err != nil {
 					slog.Error("failed to format content for slack", "error", err)

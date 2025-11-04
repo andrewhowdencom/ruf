@@ -7,5 +7,6 @@ package main
 import "github.com/andrewhowdencom/ruf/cmd"
 
 func main() {
+	cmd.InitConfig()
 	cmd.Execute()
 }

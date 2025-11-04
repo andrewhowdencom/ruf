@@ -11,7 +11,8 @@ curl --remote-name \
 sudo rm -rf /usr/local/go && \
   sudo tar -C /usr/local -xzf go1.25.3.linux-amd64.tar.gz
 
-echo "export PATH=$PATH:/usr/local/go/bin" >> /etc/profile
+echo "export PATH=$PATH:/usr/local/go/bin" | sudo tee --append /etc/profile
+. ~/.bashrc
 
 go version
 

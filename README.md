@@ -50,6 +50,10 @@ Each call must have a list of `triggers` that determine when the call should be 
 - `cron`: A cron expression for recurring calls.
 - `sequence` and `delta`: For event-driven call sequences.
 
+### Content Formatting
+
+The `content` of a call can be written in Markdown. This will be automatically converted to the appropriate format for the destination. For example, it will be converted to HTML for email and Slack's `mrkdwn` for Slack.
+
 ### Example
 
 ```yaml
@@ -60,7 +64,11 @@ calls:
 - id: "unique-id-1"
   author: "author@example.com"
   subject: "Hello!"
-  content: "Hello, world!"
+  content: |
+    # Hello, world!
+    This is a call with **Markdown** content.
+    - one
+    - two
   destinations:
     - type: "slack"
       to:

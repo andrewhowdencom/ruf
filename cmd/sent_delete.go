@@ -34,7 +34,7 @@ var sentDeleteCmd = &cobra.Command{
 
 		if sm.Type == "slack" {
 			client := slack.NewClient(viper.GetString("slack.app.token"))
-			if err := client.DeleteMessage(sm.Destination, sm.Timestamp); err != nil {
+			if err := client.DeleteMessage(cmd.Context(), sm.Destination, sm.Timestamp); err != nil {
 				return fmt.Errorf("failed to delete message from slack: %w", err)
 			}
 		}

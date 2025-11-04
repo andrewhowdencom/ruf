@@ -37,8 +37,6 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $XDG_CONFIG_HOME/ruf/config.yaml)")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 	viper.BindPFlag("log.level", rootCmd.PersistentFlags().Lookup("log-level"))
@@ -49,10 +47,18 @@ func init() {
 	viper.SetDefault("email.password", "")
 	viper.SetDefault("email.from", "")
 	viper.SetDefault("git.tokens", map[string]string{})
+	viper.SetDefault("otel.exporter.otlp.endpoint", "")
+	viper.SetDefault("otel.exporter.otlp.insecure", false)
+	viper.SetDefault("otel.exporter.otlp.headers", map[string]string{})
 }
 
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
+// Bootstrap reads in config file and ENV variables if set.
+func Bootstrap() {
+	// Don't run this on help commands
+	if strings.HasSuffix(os.Args[1], "help") {
+		return
+	}
+
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)

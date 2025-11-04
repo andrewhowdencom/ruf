@@ -1,13 +1,20 @@
 package email
 
 import (
+	"context"
 	"fmt"
 	"net/smtp"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("ruf/internal/clients/email")
 
 // Client is an interface for sending emails.
 type Client interface {
-	Send(to []string, author, subject, body string) error
+	Send(ctx context.Context, to []string, author, subject, body string) error
 }
 
 // SMTPClient is a client for sending emails using SMTP.
@@ -30,7 +37,13 @@ func NewClient(host string, port int, username, password, from string) Client {
 }
 
 // Send sends an email to the specified recipients.
-func (c *SMTPClient) Send(to []string, author, subject, body string) error {
+func (c *SMTPClient) Send(ctx context.Context, to []string, author, subject, body string) error {
+	ctx, span := tracer.Start(ctx, "email.Send", trace.WithAttributes(
+		attribute.StringSlice("ruf.email.to", to),
+		attribute.String("ruf.email.author", author),
+	))
+	defer span.End()
+
 	var errs []error
 	for _, recipient := range to {
 		// Default headers
@@ -91,7 +104,7 @@ func (c *SMTPClient) Send(to []string, author, subject, body string) error {
 
 // MockClient is a mock implementation of the Client interface.
 type MockClient struct {
-	SendFunc func(to []string, author, subject, body string) error
+	SendFunc func(ctx context.Context, to []string, author, subject, body string) error
 }
 
 // NewMockClient returns a new mock client.
@@ -100,9 +113,9 @@ func NewMockClient() *MockClient {
 }
 
 // Send is the mock implementation of the Send method.
-func (m *MockClient) Send(to []string, author, subject, body string) error {
+func (m *MockClient) Send(ctx context.Context, to []string, author, subject, body string) error {
 	if m.SendFunc != nil {
-		return m.SendFunc(to, author, subject, body)
+		return m.SendFunc(ctx, to, author, subject, body)
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package worker_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func TestWorker_RunTick(t *testing.T) {
 	// Mock Slack client
 	slackClient := slack.NewMockClient()
 	var capturedSlackAuthor string
-	slackClient.PostMessageFunc = func(channel, author, subject, text string) (string, string, error) {
+	slackClient.PostMessageFunc = func(ctx context.Context, channel, author, subject, text string) (string, string, error) {
 		capturedSlackAuthor = author
 		return "C1234567890", "1234567890.123456", nil
 	}
@@ -43,7 +44,7 @@ func TestWorker_RunTick(t *testing.T) {
 	// Mock Email client
 	emailClient := email.NewMockClient()
 	var capturedEmailAuthor string
-	emailClient.SendFunc = func(to []string, author, subject, body string) error {
+	emailClient.SendFunc = func(ctx context.Context, to []string, author, subject, body string) error {
 		capturedEmailAuthor = author
 		return nil
 	}
@@ -87,9 +88,10 @@ func TestWorker_RunTick(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "10m")
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err := w.RunTick()
+	err = w.RunTick(context.Background())
 	assert.NoError(t, err)
 
 	sentMessages, err := store.ListSentMessages()
@@ -144,9 +146,10 @@ func TestWorker_RunTickWithOldCall(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "24h")
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err := w.RunTick()
+	err = w.RunTick(context.Background())
 	assert.NoError(t, err)
 
 	sentMessages, err := store.ListSentMessages()
@@ -212,9 +215,10 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 
 	viper.Set("source.urls", []string{"mock://url"})
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err = w.RunTick()
+	err = w.RunTick(context.Background())
 	assert.NoError(t, err)
 
 	// Check that the slack client was not called
@@ -278,9 +282,10 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "1h")
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err := w.RunTick()
+	err = w.RunTick(context.Background())
 	assert.NoError(t, err)
 
 	sentMessages, err := store.ListSentMessages()

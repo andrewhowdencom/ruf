@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -14,6 +15,15 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/templater"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+)
+
+var (
+	tracer = otel.Tracer("ruf/internal/worker")
+	meter  = otel.Meter("ruf/internal/worker")
 )
 
 // Worker is responsible for polling for calls and sending them.
@@ -23,17 +33,28 @@ type Worker struct {
 	emailClient email.Client
 	poller      *poller.Poller
 	interval    time.Duration
+
+	callsProcessed metric.Int64Counter
 }
 
 // New creates a new worker.
-func New(store datastore.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, interval time.Duration) *Worker {
-	return &Worker{
-		store:       store,
-		slackClient: slackClient,
-		emailClient: emailClient,
-		poller:      poller,
-		interval:    interval,
+func New(store datastore.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, interval time.Duration) (*Worker, error) {
+	callsProcessed, err := meter.Int64Counter("ruf.calls.processed",
+		metric.WithDescription("The number of calls processed"),
+		metric.WithUnit("{call}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create calls processed counter: %w", err)
 	}
+
+	return &Worker{
+		store:          store,
+		slackClient:    slackClient,
+		emailClient:    emailClient,
+		poller:         poller,
+		interval:       interval,
+		callsProcessed: callsProcessed,
+	}, nil
 }
 
 // Run starts the worker.
@@ -42,13 +63,15 @@ func (w *Worker) Run() error {
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 
+	ctx := context.Background()
+
 	// Run a poll on startup
-	if err := w.RunTick(); err != nil {
+	if err := w.RunTick(ctx); err != nil {
 		slog.Error("error running tick", "error", err)
 	}
 
 	for range ticker.C {
-		if err := w.RunTick(); err != nil {
+		if err := w.RunTick(ctx); err != nil {
 			slog.Error("error running tick", "error", err)
 		}
 	}
@@ -56,7 +79,10 @@ func (w *Worker) Run() error {
 }
 
 // RunTick performs a single poll for calls and sends them.
-func (w *Worker) RunTick() error {
+func (w *Worker) RunTick(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "worker.RunTick")
+	defer span.End()
+
 	slog.Debug("running tick")
 	urls := viper.GetStringSlice("source.urls")
 	slog.Debug("polling for calls", "urls", urls)
@@ -68,7 +94,7 @@ func (w *Worker) RunTick() error {
 	calls := w.expandCalls(sources)
 
 	for _, call := range calls {
-		if err := w.processCall(call); err != nil {
+		if err := w.processCall(ctx, call); err != nil {
 			slog.Error("error processing call", "call_id", call.ID, "error", err)
 		}
 	}
@@ -148,7 +174,13 @@ func (w *Worker) createCallFromDefinition(def model.Call) *model.Call {
 	return &newCall
 }
 
-func (w *Worker) processCall(call *model.Call) error {
+func (w *Worker) processCall(ctx context.Context, call *model.Call) error {
+	ctx, span := tracer.Start(ctx, "worker.processCall", trace.WithAttributes(
+		attribute.String("ruf.call.id", call.ID),
+		attribute.String("ruf.campaign.id", call.Campaign.ID),
+	))
+	defer span.End()
+
 	slog.Debug("processing call", "call_id", call.ID)
 	now := time.Now()
 	effectiveScheduledAt := call.ScheduledAt
@@ -156,6 +188,11 @@ func (w *Worker) processCall(call *model.Call) error {
 	// Don't process calls scheduled for the future.
 	if now.Before(effectiveScheduledAt) {
 		slog.Debug("skipping call scheduled for the future", "call_id", call.ID, "effective_scheduled_at", effectiveScheduledAt)
+		w.callsProcessed.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("ruf.call.id", call.ID),
+			attribute.String("ruf.campaign.id", call.Campaign.ID),
+			attribute.String("status", "skipped"),
+		))
 		return nil
 	}
 
@@ -193,6 +230,11 @@ func (w *Worker) processCall(call *model.Call) error {
 			}
 			if hasBeenSent {
 				slog.Debug("skipping call that has already been sent", "call_id", call.ID, "destination", to, "type", dest.Type)
+				w.callsProcessed.Add(ctx, 1, metric.WithAttributes(
+					attribute.String("ruf.call.id", call.ID),
+					attribute.String("ruf.campaign.id", call.Campaign.ID),
+					attribute.String("status", "skipped"),
+				))
 				continue
 			}
 
@@ -227,7 +269,7 @@ func (w *Worker) processCall(call *model.Call) error {
 			switch dest.Type {
 			case "slack":
 				slog.Info("sending slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
-				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, content)
+				channelID, timestamp, err := w.slackClient.PostMessage(ctx, to, call.Author, subject, content)
 				sentMessage := &datastore.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
@@ -240,12 +282,22 @@ func (w *Worker) processCall(call *model.Call) error {
 				if err != nil {
 					sentMessage.Status = datastore.StatusFailed
 					slog.Error("failed to send slack message", "error", err)
+					w.callsProcessed.Add(ctx, 1, metric.WithAttributes(
+						attribute.String("ruf.call.id", call.ID),
+						attribute.String("ruf.campaign.id", call.Campaign.ID),
+						attribute.String("status", "failed"),
+					))
 				} else {
 					sentMessage.Status = datastore.StatusSent
 					slog.Info("sent slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
+					w.callsProcessed.Add(ctx, 1, metric.WithAttributes(
+						attribute.String("ruf.call.id", call.ID),
+						attribute.String("ruf.campaign.id", call.Campaign.ID),
+						attribute.String("status", "sent"),
+					))
 
 					if call.Author != "" {
-						err := w.slackClient.NotifyAuthor(call.Author, channelID, timestamp, to)
+						err := w.slackClient.NotifyAuthor(ctx, call.Author, channelID, timestamp, to)
 						if err != nil {
 							slog.Error("failed to send author notification", "error", err)
 						}
@@ -257,7 +309,7 @@ func (w *Worker) processCall(call *model.Call) error {
 				}
 			case "email":
 				slog.Info("sending email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
-				err := w.emailClient.Send([]string{to}, call.Author, subject, content)
+				err := w.emailClient.Send(ctx, []string{to}, call.Author, subject, content)
 				sentMessage := &datastore.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
@@ -269,9 +321,19 @@ func (w *Worker) processCall(call *model.Call) error {
 				if err != nil {
 					sentMessage.Status = datastore.StatusFailed
 					slog.Error("failed to send email", "error", err)
+					w.callsProcessed.Add(ctx, 1, metric.WithAttributes(
+						attribute.String("ruf.call.id", call.ID),
+						attribute.String("ruf.campaign.id", call.Campaign.ID),
+						attribute.String("status", "failed"),
+					))
 				} else {
 					sentMessage.Status = datastore.StatusSent
 					slog.Info("sent email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
+					w.callsProcessed.Add(ctx, 1, metric.WithAttributes(
+						attribute.String("ruf.call.id", call.ID),
+						attribute.String("ruf.campaign.id", call.Campaign.ID),
+						attribute.String("status", "sent"),
+					))
 				}
 
 				if err := w.store.AddSentMessage(call.Campaign.ID, call.ID, sentMessage); err != nil {

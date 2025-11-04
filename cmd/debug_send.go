@@ -85,7 +85,7 @@ var sendCmd = &cobra.Command{
 		case "slack":
 			slackToken := viper.GetString("slack.app.token")
 			slackClient := slack.NewClient(slackToken)
-			_, _, err := slackClient.PostMessage(dest, selectedCall.Author, renderedSubject, renderedContent.String())
+			_, _, err := slackClient.PostMessage(cmd.Context(), dest, selectedCall.Author, renderedSubject, renderedContent.String())
 			if err != nil {
 				return fmt.Errorf("failed to send slack message: %w", err)
 			}
@@ -97,7 +97,7 @@ var sendCmd = &cobra.Command{
 				viper.GetString("email.password"),
 				viper.GetString("email.from"),
 			)
-			err := emailClient.Send([]string{dest}, selectedCall.Author, renderedSubject, renderedContent.String())
+			err := emailClient.Send(cmd.Context(), []string{dest}, selectedCall.Author, renderedSubject, renderedContent.String())
 			if err != nil {
 				return fmt.Errorf("failed to send email: %w", err)
 			}

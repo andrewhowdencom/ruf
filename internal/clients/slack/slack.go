@@ -1,18 +1,24 @@
 package slack
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/slack-go/slack"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("ruf/internal/clients/slack")
 
 // Client is an interface that defines the methods for interacting with the Slack API.
 type Client interface {
-	PostMessage(destination, author, subject, text string) (string, string, error)
-	NotifyAuthor(authorEmail, channelId, messageTimestamp, channelName string) error
-	DeleteMessage(channel, timestamp string) error
-	GetChannelID(destination string) (string, error)
+	PostMessage(ctx context.Context, destination, author, subject, text string) (string, string, error)
+	NotifyAuthor(ctx context.Context, authorEmail, channelId, messageTimestamp, channelName string) error
+	DeleteMessage(ctx context.Context, channel, timestamp string) error
+	GetChannelID(ctx context.Context, destination string) (string, error)
 }
 
 // client is the concrete implementation of the Client interface.
@@ -28,7 +34,13 @@ func NewClient(token string) Client {
 }
 
 // PostMessage sends a message to a Slack destination.
-func (c *client) PostMessage(destination, author, subject, text string) (string, string, error) {
+func (c *client) PostMessage(ctx context.Context, destination, author, subject, text string) (string, string, error) {
+	ctx, span := tracer.Start(ctx, "slack.PostMessage", trace.WithAttributes(
+		attribute.String("ruf.slack.destination", destination),
+		attribute.String("ruf.slack.author", author),
+	))
+	defer span.End()
+
 	message := text
 	if subject != "" {
 		message = fmt.Sprintf("*%s*\n%s", subject, text)
@@ -64,7 +76,7 @@ func (c *client) PostMessage(destination, author, subject, text string) (string,
 		}
 	}
 
-	channelID, err := c.GetChannelID(destination)
+	channelID, err := c.GetChannelID(ctx, destination)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get channel id for '%s': %w", destination, err)
 	}
@@ -78,8 +90,14 @@ func (c *client) PostMessage(destination, author, subject, text string) (string,
 }
 
 // NotifyAuthor sends a direct message to the author of a message with a permalink to the original message.
-func (c *client) NotifyAuthor(authorEmail, channelId, messageTimestamp, channelName string) error {
-	user, err := c.api.GetUserByEmail(authorEmail)
+func (c *client) NotifyAuthor(ctx context.Context, authorEmail, channelId, messageTimestamp, channelName string) error {
+	ctx, span := tracer.Start(ctx, "slack.NotifyAuthor", trace.WithAttributes(
+		attribute.String("ruf.slack.author", authorEmail),
+		attribute.String("ruf.slack.channel", channelName),
+	))
+	defer span.End()
+
+	user, err := c.api.GetUserByEmailContext(ctx, authorEmail)
 	if err != nil {
 		return fmt.Errorf("failed to get user by email: %w", err)
 	}
@@ -111,12 +129,17 @@ func (c *client) NotifyAuthor(authorEmail, channelId, messageTimestamp, channelN
 }
 
 // DeleteMessage deletes a message from a Slack channel.
-func (c *client) DeleteMessage(channel, timestamp string) error {
-	channelID, err := c.GetChannelID(channel)
+func (c *client) DeleteMessage(ctx context.Context, channel, timestamp string) error {
+	ctx, span := tracer.Start(ctx, "slack.DeleteMessage", trace.WithAttributes(
+		attribute.String("ruf.slack.channel", channel),
+	))
+	defer span.End()
+
+	channelID, err := c.GetChannelID(ctx, channel)
 	if err != nil {
 		return fmt.Errorf("failed to get channel id: %w", err)
 	}
-	_, _, err = c.api.DeleteMessage(channelID, timestamp)
+	_, _, err = c.api.DeleteMessageContext(ctx, channelID, timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to delete message: %w", err)
 	}
@@ -127,7 +150,12 @@ func (c *client) DeleteMessage(channel, timestamp string) error {
 // The destination can be a public channel ("#general"), a user email ("user@example.com"),
 // or a user handle ("@username"). If the destination does not match these formats,
 // it is assumed to be a raw channel/conversation ID.
-func (c *client) GetChannelID(destination string) (string, error) {
+func (c *client) GetChannelID(ctx context.Context, destination string) (string, error) {
+	ctx, span := tracer.Start(ctx, "slack.GetChannelID", trace.WithAttributes(
+		attribute.String("ruf.slack.destination", destination),
+	))
+	defer span.End()
+
 	// Handle public/private channel names
 	if strings.HasPrefix(destination, "#") {
 		var channels []slack.Channel
@@ -136,7 +164,7 @@ func (c *client) GetChannelID(destination string) (string, error) {
 			Types: []string{"public_channel", "private_channel"},
 		}
 		for {
-			page, nextCursor, err := c.api.GetConversations(params)
+			page, nextCursor, err := c.api.GetConversationsContext(ctx, params)
 			if err != nil {
 				return "", fmt.Errorf("failed to get conversations: %w", err)
 			}
@@ -164,13 +192,13 @@ func (c *client) GetChannelID(destination string) (string, error) {
 
 	// Handle emails for DMs
 	if strings.Contains(destination, "@") && !strings.HasPrefix(destination, "@") {
-		user, err = c.api.GetUserByEmail(destination)
+		user, err = c.api.GetUserByEmailContext(ctx, destination)
 		if err != nil {
 			return "", fmt.Errorf("failed to get user by email '%s': %w", destination, err)
 		}
 	} else if strings.HasPrefix(destination, "@") {
 		// Handle usernames for DMs (this is inefficient, but the only way)
-		users, err := c.api.GetUsers()
+		users, err := c.api.GetUsersContext(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to list users: %w", err)
 		}

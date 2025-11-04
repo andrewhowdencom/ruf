@@ -54,7 +54,10 @@ func runWorker() error {
 	}
 	p := poller.New(s, pollInterval)
 
-	w := worker.New(store, slackClient, emailClient, p, pollInterval)
+	w, err := worker.New(store, slackClient, emailClient, p, pollInterval)
+	if err != nil {
+		return fmt.Errorf("failed to create worker: %w", err)
+	}
 	return w.Run()
 }
 

@@ -41,6 +41,7 @@ type Event struct {
 
 // Campaign represents a campaign.
 type Campaign struct {
-	ID   string `json:"id" yaml:"id"`
-	Name string `json:"name" yaml:"name"`
+	ID      string `json:"id" yaml:"id"`
+	Name    string `json:"name" yaml:"name"`
+	IconURL string `json:"icon_url,omitempty" yaml:"icon_url,omitempty"`
 }

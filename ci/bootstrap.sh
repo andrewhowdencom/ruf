@@ -4,7 +4,7 @@ set -exuo pipefail
 
 # Install the more recent version of Golang
 cd $(mktemp -d)
-curl --output \
+curl --remote-name \
   --location \
   https://go.dev/dl/go1.25.3.linux-amd64.tar.gz
 

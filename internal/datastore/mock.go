@@ -4,23 +4,25 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/andrewhowdencom/ruf/internal/kv"
 )
 
 // MockStore is a mock implementation of the Storer interface.
 type MockStore struct {
-	sentMessages map[string]*SentMessage
+	sentMessages map[string]*kv.SentMessage
 	mu           sync.Mutex
 }
 
 // NewMockStore creates a new MockStore.
 func NewMockStore() *MockStore {
 	return &MockStore{
-		sentMessages: make(map[string]*SentMessage),
+		sentMessages: make(map[string]*kv.SentMessage),
 	}
 }
 
 // AddSentMessage adds a new sent message to the mock store.
-func (s *MockStore) AddSentMessage(campaignID, callID string, sm *SentMessage) error {
+func (s *MockStore) AddSentMessage(campaignID, callID string, sm *kv.SentMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sm.ID = s.generateID(campaignID, callID, sm.Type, sm.Destination)
@@ -28,7 +30,7 @@ func (s *MockStore) AddSentMessage(campaignID, callID string, sm *SentMessage) e
 
 	// if the status is not set, default to sent
 	if sm.Status == "" {
-		sm.Status = StatusSent
+		sm.Status = kv.StatusSent
 	}
 	return nil
 }
@@ -39,7 +41,7 @@ func (s *MockStore) HasBeenSent(campaignID, callID, destType, destination string
 	defer s.mu.Unlock()
 	id := s.generateID(campaignID, callID, destType, destination)
 	sm, ok := s.sentMessages[id]
-	return ok && (sm.Status == StatusSent || sm.Status == StatusDeleted), nil
+	return ok && (sm.Status == kv.StatusSent || sm.Status == kv.StatusDeleted), nil
 }
 
 func (s *MockStore) generateID(campaignID, callID, destType, destination string) string {
@@ -53,10 +55,10 @@ func (s *MockStore) generateID(campaignID, callID, destType, destination string)
 }
 
 // ListSentMessages retrieves all sent messages from the mock store.
-func (s *MockStore) ListSentMessages() ([]*SentMessage, error) {
+func (s *MockStore) ListSentMessages() ([]*kv.SentMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var sentMessages []*SentMessage
+	var sentMessages []*kv.SentMessage
 	for _, sm := range s.sentMessages {
 		sentMessages = append(sentMessages, sm)
 	}
@@ -64,7 +66,7 @@ func (s *MockStore) ListSentMessages() ([]*SentMessage, error) {
 }
 
 // GetSentMessage retrieves a single sent message from the mock store.
-func (s *MockStore) GetSentMessage(id string) (*SentMessage, error) {
+func (s *MockStore) GetSentMessage(id string) (*kv.SentMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sm, ok := s.sentMessages[id]
@@ -82,7 +84,7 @@ func (s *MockStore) DeleteSentMessage(id string) error {
 	if !ok {
 		return fmt.Errorf("message with id '%s' not found", id)
 	}
-	sm.Status = StatusDeleted
+	sm.Status = kv.StatusDeleted
 	return nil
 }
 

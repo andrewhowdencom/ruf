@@ -10,8 +10,8 @@ import (
 
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/formatter"
+	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
@@ -22,7 +22,7 @@ import (
 
 // Worker is responsible for polling for calls and sending them.
 type Worker struct {
-	store       datastore.Storer
+	store       kv.Storer
 	slackClient slack.Client
 	emailClient email.Client
 	poller      *poller.Poller
@@ -30,7 +30,7 @@ type Worker struct {
 }
 
 // New creates a new worker.
-func New(store datastore.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, interval time.Duration) *Worker {
+func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, interval time.Duration) *Worker {
 	return &Worker{
 		store:       store,
 		slackClient: slackClient,
@@ -186,10 +186,10 @@ func (w *Worker) processCall(call *model.Call) error {
 		slog.Warn("skipping call outside lookback period", "call_id", call.ID, "scheduled_at", effectiveScheduledAt)
 		for _, dest := range call.Destinations {
 			for _, to := range dest.To {
-				err := w.store.AddSentMessage(call.Campaign.ID, call.ID, &datastore.SentMessage{
+				err := w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
-					Status:       datastore.StatusFailed,
+					Status:       kv.StatusFailed,
 					Type:         dest.Type,
 					Destination:  to,
 					CampaignName: call.Campaign.Name,
@@ -222,10 +222,10 @@ func (w *Worker) processCall(call *model.Call) error {
 			subject, err := templater.Render(call.Subject)
 			if err != nil {
 				slog.Error("failed to render subject", "error", err)
-				w.store.AddSentMessage(call.Campaign.ID, call.ID, &datastore.SentMessage{
+				w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
-					Status:       datastore.StatusFailed,
+					Status:       kv.StatusFailed,
 					Type:         dest.Type,
 					Destination:  to,
 					CampaignName: call.Campaign.Name,
@@ -235,10 +235,10 @@ func (w *Worker) processCall(call *model.Call) error {
 			content, err := templater.Render(call.Content)
 			if err != nil {
 				slog.Error("failed to render content", "error", err)
-				w.store.AddSentMessage(call.Campaign.ID, call.ID, &datastore.SentMessage{
+				w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
-					Status:       datastore.StatusFailed,
+					Status:       kv.StatusFailed,
 					Type:         dest.Type,
 					Destination:  to,
 					CampaignName: call.Campaign.Name,
@@ -252,10 +252,10 @@ func (w *Worker) processCall(call *model.Call) error {
 				formattedContent, err := formatter.ToSlack([]byte(content))
 				if err != nil {
 					slog.Error("failed to format content for slack", "error", err)
-					w.store.AddSentMessage(call.Campaign.ID, call.ID, &datastore.SentMessage{
+					w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
 						SourceID:     call.ID,
 						ScheduledAt:  effectiveScheduledAt,
-						Status:       datastore.StatusFailed,
+						Status:       kv.StatusFailed,
 						Type:         dest.Type,
 						Destination:  to,
 						CampaignName: call.Campaign.Name,
@@ -264,7 +264,7 @@ func (w *Worker) processCall(call *model.Call) error {
 				}
 
 				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, formattedContent, call.Campaign)
-				sentMessage := &datastore.SentMessage{
+				sentMessage := &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
 					Timestamp:    timestamp,
@@ -274,10 +274,10 @@ func (w *Worker) processCall(call *model.Call) error {
 				}
 
 				if err != nil {
-					sentMessage.Status = datastore.StatusFailed
+					sentMessage.Status = kv.StatusFailed
 					slog.Error("failed to send slack message", "error", err)
 				} else {
-					sentMessage.Status = datastore.StatusSent
+					sentMessage.Status = kv.StatusSent
 					slog.Info("sent slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
 
 					if call.Author != "" {
@@ -295,7 +295,7 @@ func (w *Worker) processCall(call *model.Call) error {
 				slog.Info("sending email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
 				formattedContent := formatter.ToHTML([]byte(content))
 				err := w.emailClient.Send([]string{to}, call.Author, subject, string(formattedContent), call.Campaign)
-				sentMessage := &datastore.SentMessage{
+				sentMessage := &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
 					Destination:  to,
@@ -304,10 +304,10 @@ func (w *Worker) processCall(call *model.Call) error {
 				}
 
 				if err != nil {
-					sentMessage.Status = datastore.StatusFailed
+					sentMessage.Status = kv.StatusFailed
 					slog.Error("failed to send email", "error", err)
 				} else {
-					sentMessage.Status = datastore.StatusSent
+					sentMessage.Status = kv.StatusSent
 					slog.Info("sent email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
 				}
 

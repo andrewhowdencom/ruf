@@ -6,6 +6,7 @@ import (
 
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
 	"github.com/andrewhowdencom/ruf/internal/datastore"
+	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -26,7 +27,7 @@ var sentDeleteCmd = &cobra.Command{
 
 		sm, err := store.GetSentMessage(callID)
 		if err != nil {
-			if errors.Is(err, datastore.ErrNotFound) {
+			if errors.Is(err, kv.ErrNotFound) {
 				return fmt.Errorf("could not find a call with ID '%s'", callID)
 			}
 			return fmt.Errorf("failed to get sent message: %w", err)

@@ -11,3 +11,9 @@ tasks:
     cmds:
       - go test ./...
     desc: 'Runs all tests'
+
+  validate:
+    desc: "Validates the project by building and running tests"
+    cmds:
+      - task: build
+      - task: test

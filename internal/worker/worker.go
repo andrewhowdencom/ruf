@@ -8,6 +8,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
 	"github.com/andrewhowdencom/ruf/internal/datastore"
+	"github.com/andrewhowdencom/ruf/internal/formatter"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
@@ -233,7 +234,22 @@ func (w *Worker) processCall(call *model.Call) error {
 			switch dest.Type {
 			case "slack":
 				slog.Info("sending slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
-				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, content, call.Campaign)
+        
+				formattedContent, err := formatter.ToSlack([]byte(content))
+				if err != nil {
+					slog.Error("failed to format content for slack", "error", err)
+					w.store.AddSentMessage(call.Campaign.ID, call.ID, &datastore.SentMessage{
+						SourceID:     call.ID,
+						ScheduledAt:  effectiveScheduledAt,
+						Status:       datastore.StatusFailed,
+						Type:         dest.Type,
+						Destination:  to,
+						CampaignName: call.Campaign.Name,
+					})
+					continue
+				}
+
+				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, formattedContent, call.Campaign)
 				sentMessage := &datastore.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
@@ -263,7 +279,8 @@ func (w *Worker) processCall(call *model.Call) error {
 				}
 			case "email":
 				slog.Info("sending email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
-				err := w.emailClient.Send([]string{to}, call.Author, subject, content, call.Campaign)
+				formattedContent := formatter.ToHTML([]byte(content))
+				err := w.emailClient.Send([]string{to}, call.Author, subject, string(formattedContent), call.Campaign)
 				sentMessage := &datastore.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,

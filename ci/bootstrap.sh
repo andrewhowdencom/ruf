@@ -1,10 +1,12 @@
 # Script to bootstrap an environment (e.g. Google Jules) to something that can be used for development.
 # Safeties
-set -euo pipefail
+set -exuo pipefail
 
 # Install the more recent version of Golang
 cd $(mktemp -d)
-curl -O https://go.dev/dl/go1.25.3.linux-amd64.tar.gz
+curl --output \
+  --location \
+  https://go.dev/dl/go1.25.3.linux-amd64.tar.gz
 
 sudo rm -rf /usr/local/go && \
   sudo tar -C /usr/local -xzf go1.25.3.linux-amd64.tar.gz

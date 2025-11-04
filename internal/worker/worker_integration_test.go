@@ -1,0 +1,106 @@
+package worker_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/andrewhowdencom/ruf/internal/clients/email"
+	"github.com/andrewhowdencom/ruf/internal/clients/slack"
+	"github.com/andrewhowdencom/ruf/internal/datastore"
+	"github.com/andrewhowdencom/ruf/internal/model"
+	"github.com/andrewhowdencom/ruf/internal/poller"
+	"github.com/andrewhowdencom/ruf/internal/sourcer"
+	"github.com/andrewhowdencom/ruf/internal/worker"
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestWorker_RunTick_MarkdownFormatting(t *testing.T) {
+	store := datastore.NewMockStore()
+	slackClient := slack.NewMockClient()
+	emailClient := email.NewMockClient()
+
+	var capturedSlackContent string
+	slackClient.PostMessageFunc = func(channel, author, subject, text string, campaign model.Campaign) (string, string, error) {
+		capturedSlackContent = text
+		return "C1234567890", "1234567890.123456", nil
+	}
+
+	var capturedEmailContent string
+	emailClient.SendFunc = func(to []string, author, subject, body string, campaign model.Campaign) error {
+		capturedEmailContent = body
+		return nil
+	}
+
+	markdownContent := `# Title
+
+**bold**
+
+_italic_
+
+[link](http://example.com)
+
+- one
+- two
+- three
+`
+	s := &mockSourcer{
+		sourcesBySource: map[string]*sourcer.Source{
+			"mock://url": {
+				Calls: []model.Call{
+					{
+						ID:      "markdown-test",
+						Author:  "test@author.com",
+						Subject: "Markdown Test",
+						Content: markdownContent,
+						Destinations: []model.Destination{
+							{
+								Type: "slack",
+								To:   []string{"test-channel"},
+							},
+							{
+								Type: "email",
+								To:   []string{"test@example.com"},
+							},
+						},
+						Triggers: []model.Trigger{
+							{
+								ScheduledAt: time.Now().Add(-1 * time.Minute),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	p := poller.New(s, 1*time.Minute)
+	viper.Set("source.urls", []string{"mock://url"})
+	viper.Set("worker.lookback_period", "10m")
+
+	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+
+	err := w.RunTick()
+	assert.NoError(t, err)
+
+	// Assertions for Slack mrkdwn
+	expectedSlackMrkdwn := "*Title*\n\n\n*bold*\n\n\n_italic_\n\n\n<http://example.com|link>\n\n\n• one\n• two\n• three"
+	assert.Equal(t, expectedSlackMrkdwn, capturedSlackContent)
+
+	// Assertions for Email HTML
+	expectedEmailHTML := `<h1 id="title">Title</h1>
+
+<p><strong>bold</strong></p>
+
+<p><em>italic</em></p>
+
+<p><a href="http://example.com" target="_blank">link</a></p>
+
+<ul>
+<li>one</li>
+<li>two</li>
+<li>three</li>
+</ul>
+`
+	assert.Equal(t, expectedEmailHTML, capturedEmailContent)
+}

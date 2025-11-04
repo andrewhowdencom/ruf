@@ -249,7 +249,6 @@ func (w *Worker) processCall(call *model.Call) error {
 			switch dest.Type {
 			case "slack":
 				slog.Info("sending slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
-        
 				formattedContent, err := formatter.ToSlack([]byte(content))
 				if err != nil {
 					slog.Error("failed to format content for slack", "error", err)

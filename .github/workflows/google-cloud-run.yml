@@ -1,0 +1,42 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Google Auth
+      uses: 'google-github-actions/auth@v1'
+      with:
+        workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+        service_account: '${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}'
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+
+    - name: Configure Docker
+      run: gcloud auth configure-docker europe-west3-docker.pkg.dev
+
+    - name: Build and Push
+      run: |-
+        docker build -t europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ruf/ruf:latest .
+        docker push europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ruf/ruf:latest
+
+    - name: Deploy to Cloud Run
+      run: |-
+        gcloud run deploy ruf \
+          --image europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ruf/ruf:latest \
+          --region europe-west3 \
+          --service-account ruf-runner@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+          --allow-unauthenticated

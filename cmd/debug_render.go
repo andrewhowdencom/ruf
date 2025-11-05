@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/processor"
+	"github.com/gorhill/cronexpr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -64,6 +66,31 @@ var debugRenderCmd = &cobra.Command{
 
 		fmt.Fprintln(cmd.OutOrStdout(), "Subject:", subject)
 		fmt.Fprintln(cmd.OutOrStdout(), "Content:", content)
+
+		// Calculate and display the next send time.
+		var next time.Time
+		for _, trigger := range callToRender.Triggers {
+			if trigger.Cron != "" {
+				expr, err := cronexpr.Parse(trigger.Cron)
+				if err != nil {
+					// Should have been caught by validation, but handle anyway.
+					return fmt.Errorf("invalid cron expression: %w", err)
+				}
+				nextRun := expr.Next(time.Now())
+				if next.IsZero() || nextRun.Before(next) {
+					next = nextRun
+				}
+			}
+			if !trigger.ScheduledAt.IsZero() {
+				if next.IsZero() || trigger.ScheduledAt.Before(next) {
+					next = trigger.ScheduledAt
+				}
+			}
+		}
+
+		if !next.IsZero() {
+			fmt.Fprintln(cmd.OutOrStdout(), "Next Send:", next.Format(time.RFC1123))
+		}
 
 		return nil
 	},

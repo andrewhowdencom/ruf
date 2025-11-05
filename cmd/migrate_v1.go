@@ -65,7 +65,7 @@ var migrateV1Cmd = &cobra.Command{
 				triggers = append(triggers, model.Trigger{ScheduledAt: legacyCall.ScheduledAt})
 			}
 			if legacyCall.Cron != "" {
-				triggers = append(triggers, model.Trigger{Cron: legacyCall.Cron, Recurring: legacyCall.Recurring})
+				triggers = append(triggers, model.Trigger{Cron: legacyCall.Cron})
 			}
 			if legacyCall.Sequence != "" || legacyCall.Delta != "" {
 				triggers = append(triggers, model.Trigger{Sequence: legacyCall.Sequence, Delta: legacyCall.Delta})

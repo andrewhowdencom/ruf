@@ -91,7 +91,6 @@ calls:
             - C1234567890
       triggers:
         - cron: 0 * * * *
-          recurring: true
     - id: unique-id-3
       subject: Event-based hello!
       content: Hello, event-based world!

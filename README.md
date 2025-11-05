@@ -48,6 +48,7 @@ Each call must have a list of `triggers` that determine when the call should be 
 
 - `scheduled_at`: A specific time to send the call.
 - `cron`: A cron expression for recurring calls.
+- `rrule`: An iCal `rrule` string for more complex recurring calls.
 - `sequence` and `delta`: For event-driven call sequences.
 
 ### Content Formatting
@@ -88,7 +89,7 @@ calls:
         - "#general"
   triggers:
     - cron: "0 * * * *"
-      recurring: true
+    - rrule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
 ```
 
 ## Event-Driven Call Sequences

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -163,7 +164,28 @@ func (w *Worker) ExpandCalls(sources []*sourcer.Source, now time.Time) []*model.
 						slog.Error("failed to parse rrule", "error", err, "rrule", trigger.RRule)
 						continue
 					}
-					rOption.Dtstart = now
+
+					if trigger.DStart != "" {
+						parts := strings.SplitN(trigger.DStart, ":", 2)
+						if len(parts) != 2 {
+							slog.Error("invalid dstart format", "dstart", trigger.DStart)
+							continue
+						}
+						tzid := strings.TrimPrefix(parts[0], "TZID=")
+						loc, err := time.LoadLocation(tzid)
+						if err != nil {
+							slog.Error("failed to load location", "error", err, "tzid", tzid)
+							continue
+						}
+						dtstart, err := time.ParseInLocation("20060102T150405", parts[1], loc)
+						if err != nil {
+							slog.Error("failed to parse dstart time", "error", err, "dstart", trigger.DStart)
+							continue
+						}
+						rOption.Dtstart = dtstart
+					} else {
+						rOption.Dtstart = now
+					}
 
 					rule, err := rrule.NewRRule(*rOption)
 					if err != nil {
@@ -177,6 +199,9 @@ func (w *Worker) ExpandCalls(sources []*sourcer.Source, now time.Time) []*model.
 						newCall.ID = fmt.Sprintf("%s:rrule:%s:%s", callDef.ID, trigger.RRule, occurrence.Format(time.RFC3339))
 						expandedCalls = append(expandedCalls, newCall)
 					}
+				} else if trigger.DStart != "" {
+					slog.Error("dstart specified without rrule", "dstart", trigger.DStart)
+					continue
 				}
 
 				// Handle event sequence triggers

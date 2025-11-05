@@ -297,3 +297,29 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, sentMessages, 2)
 }
+
+func TestWorker_ExpandCallsWithRRule(t *testing.T) {
+	w := worker.New(nil, nil, nil, nil, 0)
+
+	sources := []*sourcer.Source{
+		{
+			Calls: []model.Call{
+				{
+					ID:      "1",
+					Content: "Hello, world!",
+					Triggers: []model.Trigger{
+						{
+							RRule: "FREQ=HOURLY;COUNT=5",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Set a specific time for the test
+	now, _ := time.Parse(time.RFC3339, "2025-01-01T12:00:00Z")
+	calls := w.ExpandCalls(sources, now)
+
+	assert.Len(t, calls, 5)
+}

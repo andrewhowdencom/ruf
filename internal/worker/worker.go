@@ -107,7 +107,7 @@ func (w *Worker) ProcessMessages() error {
 	sources := w.sources
 	w.mu.RUnlock()
 
-	calls := w.expandCalls(sources)
+	calls := w.ExpandCalls(sources, time.Now())
 
 	for _, call := range calls {
 		if err := w.processCall(call); err != nil {
@@ -118,9 +118,9 @@ func (w *Worker) ProcessMessages() error {
 	return nil
 }
 
-// expandCalls takes a list of sources and expands the call definitions within them
+// ExpandCalls takes a list of sources and expands the call definitions within them
 // into a flat list of concrete, scheduled calls based on their triggers.
-func (w *Worker) expandCalls(sources []*sourcer.Source) []*model.Call {
+func (w *Worker) ExpandCalls(sources []*sourcer.Source, now time.Time) []*model.Call {
 	var expandedCalls []*model.Call
 
 	for _, source := range sources {
@@ -148,7 +148,7 @@ func (w *Worker) expandCalls(sources []*sourcer.Source) []*model.Call {
 						slog.Error("failed to parse cron", "error", err, "cron", trigger.Cron)
 						continue
 					}
-					effectiveScheduledAt := schedule.Next(time.Now().Add(-2 * time.Minute)).Truncate(time.Minute)
+					effectiveScheduledAt := schedule.Next(now.Add(-2 * time.Minute)).Truncate(time.Minute)
 
 					newCall := w.createCallFromDefinition(callDef)
 					newCall.ScheduledAt = effectiveScheduledAt
@@ -158,12 +158,19 @@ func (w *Worker) expandCalls(sources []*sourcer.Source) []*model.Call {
 
 				// Handle RRule triggers
 				if trigger.RRule != "" {
-					rule, err := rrule.StrToRRule(trigger.RRule)
+					rOption, err := rrule.StrToROption(trigger.RRule)
 					if err != nil {
 						slog.Error("failed to parse rrule", "error", err, "rrule", trigger.RRule)
 						continue
 					}
-					now := time.Now()
+					rOption.Dtstart = now
+
+					rule, err := rrule.NewRRule(*rOption)
+					if err != nil {
+						slog.Error("failed to create rrule", "error", err, "rrule", trigger.RRule)
+						continue
+					}
+
 					for _, occurrence := range rule.Between(now, now.Add(24*time.Hour), true) {
 						newCall := w.createCallFromDefinition(callDef)
 						newCall.ScheduledAt = occurrence

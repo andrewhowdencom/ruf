@@ -88,8 +88,8 @@
         "cron": {
           "type": "string"
         },
-        "recurring": {
-          "type": "boolean"
+        "rrule": {
+          "type": "string"
         },
         "delta": {
           "type": "string"

@@ -12,7 +12,7 @@ type Destination struct {
 type Trigger struct {
 	ScheduledAt time.Time `json:"scheduled_at,omitempty" yaml:"scheduled_at,omitempty"`
 	Cron        string    `json:"cron,omitempty" yaml:"cron,omitempty"`
-	Recurring   bool      `json:"recurring,omitempty" yaml:"recurring,omitempty"`
+	RRule       string    `json:"rrule,omitempty" yaml:"rrule,omitempty"`
 	Delta       string    `json:"delta,omitempty" yaml:"delta,omitempty"`
 	Sequence    string    `json:"sequence,omitempty" yaml:"sequence,omitempty"`
 }

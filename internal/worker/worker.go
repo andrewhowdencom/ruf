@@ -18,6 +18,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/viper"
+	"github.com/teambition/rrule-go"
 )
 
 // Worker is responsible for polling for calls and sending them.
@@ -153,6 +154,22 @@ func (w *Worker) expandCalls(sources []*sourcer.Source) []*model.Call {
 					newCall.ScheduledAt = effectiveScheduledAt
 					newCall.ID = fmt.Sprintf("%s:cron:%s", callDef.ID, trigger.Cron)
 					expandedCalls = append(expandedCalls, newCall)
+				}
+
+				// Handle RRule triggers
+				if trigger.RRule != "" {
+					rule, err := rrule.StrToRRule(trigger.RRule)
+					if err != nil {
+						slog.Error("failed to parse rrule", "error", err, "rrule", trigger.RRule)
+						continue
+					}
+					now := time.Now()
+					for _, occurrence := range rule.Between(now, now.Add(24*time.Hour), true) {
+						newCall := w.createCallFromDefinition(callDef)
+						newCall.ScheduledAt = occurrence
+						newCall.ID = fmt.Sprintf("%s:rrule:%s:%s", callDef.ID, trigger.RRule, occurrence.Format(time.RFC3339))
+						expandedCalls = append(expandedCalls, newCall)
+					}
 				}
 
 				// Handle event sequence triggers

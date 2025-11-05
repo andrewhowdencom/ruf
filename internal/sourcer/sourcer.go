@@ -12,6 +12,7 @@ import (
 
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/ghodss/yaml"
+	"github.com/teambition/rrule-go"
 	"github.com/xeipuuv/gojsonschema"
 )
 
@@ -180,6 +181,18 @@ func (p *YAMLParser) Parse(rawURL string, data []byte) (*Source, error) {
 	// Add the campaign to each call.
 	for i := range s.Calls {
 		s.Calls[i].Campaign = s.Campaign
+	}
+
+	// Validate RRules
+	for _, call := range s.Calls {
+		for _, trigger := range call.Triggers {
+			if trigger.RRule != "" {
+				if _, err := rrule.StrToRRule(trigger.RRule); err != nil {
+					log.Printf("document '%s' is not valid: invalid rrule: %s", rawURL, err)
+					return nil, nil // Returning nil, nil to skip the file
+				}
+			}
+		}
 	}
 
 	return &s, nil

@@ -47,15 +47,15 @@ func runWorker() error {
 		return fmt.Errorf("failed to build sourcer: %w", err)
 	}
 
-	pollInterval := viper.GetDuration("worker.interval")
-	p := poller.New(s, pollInterval)
+	refreshInterval := viper.GetDuration("worker.refresh_interval")
+	p := poller.New(s, refreshInterval)
 
-	w := worker.New(store, slackClient, emailClient, p, pollInterval)
+	w := worker.New(store, slackClient, emailClient, p, refreshInterval)
 	return w.Run()
 }
 
 func init() {
 	rootCmd.AddCommand(workerCmd)
-	viper.SetDefault("worker.interval", "1h")
+	viper.SetDefault("worker.refresh_interval", "1h")
 	viper.SetDefault("worker.lookback_period", "24h")
 }

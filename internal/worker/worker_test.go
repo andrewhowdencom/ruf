@@ -90,7 +90,10 @@ func TestWorker_RunTick(t *testing.T) {
 
 	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
 
-	err := w.RunTick()
+	err := w.RefreshSources()
+	assert.NoError(t, err)
+
+	err = w.ProcessMessages()
 	assert.NoError(t, err)
 
 	sentMessages, err := store.ListSentMessages()
@@ -147,7 +150,9 @@ func TestWorker_RunTickWithOldCall(t *testing.T) {
 
 	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
 
-	err := w.RunTick()
+	err := w.RefreshSources()
+	assert.NoError(t, err)
+	err = w.ProcessMessages()
 	assert.NoError(t, err)
 
 	sentMessages, err := store.ListSentMessages()
@@ -215,7 +220,9 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 
 	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
 
-	err = w.RunTick()
+	err = w.RefreshSources()
+	assert.NoError(t, err)
+	err = w.ProcessMessages()
 	assert.NoError(t, err)
 
 	// Check that the slack client was not called
@@ -281,7 +288,9 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 
 	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
 
-	err := w.RunTick()
+	err := w.RefreshSources()
+	assert.NoError(t, err)
+	err = w.ProcessMessages()
 	assert.NoError(t, err)
 
 	sentMessages, err := store.ListSentMessages()

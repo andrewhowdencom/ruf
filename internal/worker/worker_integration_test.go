@@ -80,7 +80,9 @@ _italic_
 
 	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
 
-	err := w.RunTick()
+	err := w.RefreshSources()
+	assert.NoError(t, err)
+	err = w.ProcessMessages()
 	assert.NoError(t, err)
 
 	// Assertions for Slack mrkdwn

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -21,21 +22,23 @@ import (
 
 // Worker is responsible for polling for calls and sending them.
 type Worker struct {
-	store       kv.Storer
-	slackClient slack.Client
-	emailClient email.Client
-	poller      *poller.Poller
-	interval    time.Duration
+	store           kv.Storer
+	slackClient     slack.Client
+	emailClient     email.Client
+	poller          *poller.Poller
+	refreshInterval time.Duration
+	sources         []*sourcer.Source
+	mu              sync.RWMutex
 }
 
 // New creates a new worker.
-func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, interval time.Duration) *Worker {
+func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, refreshInterval time.Duration) *Worker {
 	return &Worker{
-		store:       store,
-		slackClient: slackClient,
-		emailClient: emailClient,
-		poller:      poller,
-		interval:    interval,
+		store:           store,
+		slackClient:     slackClient,
+		emailClient:     emailClient,
+		poller:          poller,
+		refreshInterval: refreshInterval,
 	}
 }
 
@@ -46,39 +49,62 @@ func (w *Worker) Run() error {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP)
 
-	ticker := time.NewTicker(w.interval)
-	defer ticker.Stop()
+	refreshTicker := time.NewTicker(w.refreshInterval)
+	defer refreshTicker.Stop()
+
+	messageTicker := time.NewTicker(1 * time.Minute)
+	defer messageTicker.Stop()
 
 	// Run a poll on startup
-	if err := w.RunTick(); err != nil {
-		slog.Error("error running tick", "error", err)
+	if err := w.RefreshSources(); err != nil {
+		slog.Error("error running initial source refresh", "error", err)
+	}
+	if err := w.ProcessMessages(); err != nil {
+		slog.Error("error running initial message processing", "error", err)
 	}
 
 	for {
 		select {
-		case <-ticker.C:
-			if err := w.RunTick(); err != nil {
-				slog.Error("error running tick", "error", err)
+		case <-refreshTicker.C:
+			if err := w.RefreshSources(); err != nil {
+				slog.Error("error running source refresh", "error", err)
+			}
+		case <-messageTicker.C:
+			if err := w.ProcessMessages(); err != nil {
+				slog.Error("error running message processing", "error", err)
 			}
 		case <-signals:
 			slog.Info("SIGHUP received, running poller")
-			ticker.Reset(w.interval)
-			if err := w.RunTick(); err != nil {
-				slog.Error("error running tick", "error", err)
+			refreshTicker.Reset(w.refreshInterval)
+			if err := w.RefreshSources(); err != nil {
+				slog.Error("error running source refresh", "error", err)
 			}
 		}
 	}
 }
 
-// RunTick performs a single poll for calls and sends them.
-func (w *Worker) RunTick() error {
-	slog.Debug("running tick")
+// RefreshSources performs a poll for sources
+func (w *Worker) RefreshSources() error {
+	slog.Debug("refreshing sources")
 	urls := viper.GetStringSlice("source.urls")
 	slog.Debug("polling for calls", "urls", urls)
 	sources, err := w.poller.Poll(urls)
 	if err != nil {
 		return err
 	}
+
+	w.mu.Lock()
+	w.sources = sources
+	w.mu.Unlock()
+
+	return nil
+}
+
+// ProcessMessages performs a single poll for calls and sends them.
+func (w *Worker) ProcessMessages() error {
+	w.mu.RLock()
+	sources := w.sources
+	w.mu.RUnlock()
 
 	calls := w.expandCalls(sources)
 

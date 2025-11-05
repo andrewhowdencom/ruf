@@ -41,8 +41,8 @@ slack:
 
 # worker contains the configuration for the worker.
 worker:
-  # interval is the interval at which the worker will poll for new calls.
-  interval: 1m
+  # refresh_interval is the interval at which the worker will refresh its sources.
+  refresh_interval: 1m
   # lookback_period is the period to look back for calls that have not been sent.
   lookback_period: 24h
 

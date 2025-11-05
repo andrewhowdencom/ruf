@@ -10,12 +10,11 @@ import (
 
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
-	"github.com/andrewhowdencom/ruf/internal/formatter"
 	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
+	"github.com/andrewhowdencom/ruf/internal/processor"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
-	"github.com/andrewhowdencom/ruf/internal/templater"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/viper"
 )
@@ -218,10 +217,32 @@ func (w *Worker) processCall(call *model.Call) error {
 				continue
 			}
 
-			// Render the subject and content
-			subject, err := templater.Render(call.Subject)
+			// Define the processor stacks for each destination type
+			var subjectProcessor, contentProcessor processor.ProcessorStack
+			switch dest.Type {
+			case "slack":
+				subjectProcessor = processor.ProcessorStack{
+					processor.NewTemplateProcessor(),
+				}
+				contentProcessor = processor.ProcessorStack{
+					processor.NewTemplateProcessor(),
+					processor.NewMarkdownToSlackProcessor(),
+				}
+			case "email":
+				subjectProcessor = processor.ProcessorStack{
+					processor.NewTemplateProcessor(),
+				}
+				contentProcessor = processor.ProcessorStack{
+					processor.NewTemplateProcessor(),
+					processor.NewMarkdownToHTMLProcessor(),
+				}
+			default:
+				return fmt.Errorf("unsupported destination type: %s", dest.Type)
+			}
+
+			subject, err := subjectProcessor.Process(call.Subject, nil)
 			if err != nil {
-				slog.Error("failed to render subject", "error", err)
+				slog.Error("failed to process subject", "error", err)
 				w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
@@ -232,9 +253,9 @@ func (w *Worker) processCall(call *model.Call) error {
 				})
 				continue
 			}
-			content, err := templater.Render(call.Content)
+			content, err := contentProcessor.Process(call.Content, nil)
 			if err != nil {
-				slog.Error("failed to render content", "error", err)
+				slog.Error("failed to process content", "error", err)
 				w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
@@ -249,21 +270,7 @@ func (w *Worker) processCall(call *model.Call) error {
 			switch dest.Type {
 			case "slack":
 				slog.Info("sending slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
-				formattedContent, err := formatter.ToSlack([]byte(content))
-				if err != nil {
-					slog.Error("failed to format content for slack", "error", err)
-					w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
-						SourceID:     call.ID,
-						ScheduledAt:  effectiveScheduledAt,
-						Status:       kv.StatusFailed,
-						Type:         dest.Type,
-						Destination:  to,
-						CampaignName: call.Campaign.Name,
-					})
-					continue
-				}
-
-				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, formattedContent, call.Campaign)
+				channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, content, call.Campaign)
 				sentMessage := &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,
@@ -293,8 +300,7 @@ func (w *Worker) processCall(call *model.Call) error {
 				}
 			case "email":
 				slog.Info("sending email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
-				formattedContent := formatter.ToHTML([]byte(content))
-				err := w.emailClient.Send([]string{to}, call.Author, subject, string(formattedContent), call.Campaign)
+				err := w.emailClient.Send([]string{to}, call.Author, subject, content, call.Campaign)
 				sentMessage := &kv.SentMessage{
 					SourceID:     call.ID,
 					ScheduledAt:  effectiveScheduledAt,

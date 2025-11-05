@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/andrewhowdencom/ruf/internal/model"
-	"github.com/andrewhowdencom/ruf/internal/templater"
+	"github.com/andrewhowdencom/ruf/internal/processor"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -50,12 +50,14 @@ var debugRenderCmd = &cobra.Command{
 			return fmt.Errorf("call with ID '%s' not found", callID)
 		}
 
-		subject, err := templater.Render(callToRender.Subject)
+		p := processor.NewTemplateProcessor()
+
+		subject, err := p.Process(callToRender.Subject, nil)
 		if err != nil {
 			return fmt.Errorf("failed to render subject: %w", err)
 		}
 
-		content, err := templater.Render(callToRender.Content)
+		content, err := p.Process(callToRender.Content, nil)
 		if err != nil {
 			return fmt.Errorf("failed to render content: %w", err)
 		}

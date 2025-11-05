@@ -323,3 +323,66 @@ func TestWorker_ExpandCallsWithRRule(t *testing.T) {
 
 	assert.Len(t, calls, 5)
 }
+
+func TestWorker_ExpandCallsWithRRuleAndDStart(t *testing.T) {
+	w := worker.New(nil, nil, nil, nil, 0)
+
+	// Set a specific time for the test
+	now, _ := time.Parse(time.RFC3339, "2025-01-01T12:00:00Z")
+
+	testCases := []struct {
+		name          string
+		trigger       model.Trigger
+		expectedCount int
+	}{
+		{
+			name: "valid rrule and dstart",
+			trigger: model.Trigger{
+				RRule:  "FREQ=DAILY;COUNT=3",
+				DStart: "TZID=UTC:20250102T090000",
+			},
+			expectedCount: 1,
+		},
+		{
+			name: "dstart without rrule",
+			trigger: model.Trigger{
+				DStart: "TZID=UTC:20250102T090000",
+			},
+			expectedCount: 0,
+		},
+		{
+			name: "rrule without dstart",
+			trigger: model.Trigger{
+				RRule: "FREQ=HOURLY;COUNT=2",
+			},
+			expectedCount: 2,
+		},
+		{
+			name: "invalid dstart format",
+			trigger: model.Trigger{
+				RRule:  "FREQ=DAILY;COUNT=3",
+				DStart: "invalid-dstart",
+			},
+			expectedCount: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sources := []*sourcer.Source{
+				{
+					Calls: []model.Call{
+						{
+							ID:       "1",
+							Content:  "Hello, world!",
+							Triggers: []model.Trigger{tc.trigger},
+						},
+					},
+				},
+			}
+
+			calls := w.ExpandCalls(sources, now)
+			assert.Len(t, calls, tc.expectedCount)
+		})
+	}
+}

@@ -13,6 +13,7 @@ type Trigger struct {
 	ScheduledAt time.Time `json:"scheduled_at,omitempty" yaml:"scheduled_at,omitempty"`
 	Cron        string    `json:"cron,omitempty" yaml:"cron,omitempty"`
 	RRule       string    `json:"rrule,omitempty" yaml:"rrule,omitempty"`
+	DStart      string    `json:"dstart,omitempty" yaml:"dstart,omitempty"`
 	Delta       string    `json:"delta,omitempty" yaml:"delta,omitempty"`
 	Sequence    string    `json:"sequence,omitempty" yaml:"sequence,omitempty"`
 }

@@ -27,6 +27,9 @@ var rootCmd = &cobra.Command{
 
 This application is a CLI tool to send calls to different platforms.
 Currently, it supports Slack.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		InitConfig()
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

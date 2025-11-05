@@ -55,7 +55,7 @@ source:
   #   - https://example.com/calls.yaml
   #   - file:///path/to/calls.yaml
   #   - git://github.com/user/repo/tree/main/calls.yaml
-  urls: []
+  urls: ["file:///app/calls.yaml"]
 
 # otel contains the configuration for OpenTelemetry.
 otel:

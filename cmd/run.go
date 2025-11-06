@@ -57,5 +57,5 @@ func doRun() error {
 }
 
 func init() {
-	rootCmd.AddCommand(runCmd)
+	dispatcherCmd.AddCommand(runCmd)
 }

@@ -59,7 +59,7 @@ func runWatchdog() error {
 }
 
 func init() {
-	rootCmd.AddCommand(watchdogCmd)
+	dispatcherCmd.AddCommand(watchdogCmd)
 	viper.SetDefault("watchdog.refresh_interval", "1h")
 	viper.SetDefault("watchdog.lookback_period", "24h")
 	viper.SetDefault("watchdog.port", 8080)

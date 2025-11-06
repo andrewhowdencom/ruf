@@ -24,23 +24,38 @@ An example, well-documented configuration file can be found at [`examples/config
 
 This application supports a time slot scheduling feature that allows you to define specific time slots for your calls. If you enable this feature, any recurring calls, or calls scheduled at midnight, will be scheduled in the next available time slot.
 
+Slots can be configured on a per-destination basis, with a fallback to a global default. The configuration is hierarchical, with the following order of precedence:
+
+1.  **Destination-specific:** `slots.<type>.<destination>` (e.g., `slots.slack."#general"`)
+2.  **Type-specific:** `slots.<type>.default` (e.g., `slots.slack.default`)
+3.  **Global default:** `slots.default`
+
 To configure the time slots, add a `slots` section to your `config.yaml` file. The following options are available:
 
 - `timezone`: The timezone to use for the time slots. It should be a valid IANA Time Zone database name (e.g. "Europe/Berlin").
-- `days`: A map of days of the week to a list of time slots. The time slots should be in the format "HH:MM".
 
 #### Example
 
 ```yaml
 slots:
   timezone: "Europe/Berlin"
-  days:
+  default:
     monday:
       - "09:00"
       - "14:00"
-    tuesday:
-      - "10:00"
+  slack:
+    default:
+      monday:
+        - "10:00"
+    "#general":
+      monday:
+        - "11:00"
 ```
+
+In this example:
+- All non-Slack destinations will use the global default slots (9am and 2pm on Mondays).
+- Slack destinations will use the Slack-specific default slots (10am on Mondays), unless a more specific configuration is provided.
+- The `#general` Slack channel will use its own specific slot (11am on Mondays).
 
 If you do not configure any time slots, the application will default to "09:00" and "14:00" for every day of the week, in UTC.
 

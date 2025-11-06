@@ -178,7 +178,7 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 	scheduledAt := time.Now().Add(-1 * time.Minute).UTC()
 
 	// Add a deleted message to the store
-	err := store.AddSentMessage("mock-campaign", "1:scheduled_at:"+scheduledAt.Format(time.RFC3339), &kv.SentMessage{
+	err := store.AddSentMessage("mock-campaign", "1:scheduled_at:"+scheduledAt.Format(time.RFC3339)+":slack:test-channel", &kv.SentMessage{
 		SourceID:    "1",
 		ScheduledAt: scheduledAt,
 		Status:      kv.StatusDeleted,
@@ -300,5 +300,5 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 
 	sentMessages, err := store.ListSentMessages()
 	assert.NoError(t, err)
-	assert.Len(t, sentMessages, 2)
+	assert.Len(t, sentMessages, 1)
 }

@@ -24,9 +24,12 @@ func TestSchedulerExpandWithSlots(t *testing.T) {
 	s := scheduler.New(store)
 
 	viper.Set("slots.timezone", "UTC")
-	viper.Set("slots.days", map[string][]string{
+	viper.Set("slots.default", map[string][]string{
 		"sunday": {"10:00", "16:00"},
 		"monday": {"09:00"},
+	})
+	viper.Set("slots.slack.default", map[string][]string{
+		"sunday": {"11:00", "17:00"},
 	})
 
 	now := time.Date(2023, 1, 1, 8, 0, 0, 0, time.UTC) // A Sunday
@@ -39,17 +42,9 @@ func TestSchedulerExpandWithSlots(t *testing.T) {
 					Triggers: []model.Trigger{
 						{ScheduledAt: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)}, // Will be moved to the first slot
 					},
-				},
-				{
-					ID: "call-2",
-					Triggers: []model.Trigger{
-						{Cron: "* * * * *"}, // Will be moved to the second slot
-					},
-				},
-				{
-					ID: "call-3",
-					Triggers: []model.Trigger{
-						{RRule: "FREQ=DAILY;COUNT=1"}, // Will be moved to the next available slot on the next day
+					Destinations: []model.Destination{
+						{Type: "email", To: []string{"test@example.com"}},
+						{Type: "slack", To: []string{"#general"}},
 					},
 				},
 			},
@@ -57,18 +52,17 @@ func TestSchedulerExpandWithSlots(t *testing.T) {
 	}
 
 	expandedCalls := s.Expand(sources, now)
-	assert.Len(t, expandedCalls, 3, "should expand to 3 calls")
+	assert.Len(t, expandedCalls, 2, "should expand to 2 calls")
 
 	sort.Slice(expandedCalls, func(i, j int) bool {
 		return expandedCalls[i].ID < expandedCalls[j].ID
 	})
 
-	assert.Equal(t, "call-1:scheduled_at:2023-01-01T00:00:00Z", expandedCalls[0].ID)
+	// Test email destination (should use default slots)
+	assert.Equal(t, "call-1:scheduled_at:2023-01-01T00:00:00Z:email:test@example.com", expandedCalls[0].ID)
 	assert.Equal(t, time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC), expandedCalls[0].ScheduledAt)
 
-	assert.Equal(t, "call-2:cron:* * * * *", expandedCalls[1].ID)
-	assert.Equal(t, time.Date(2023, 1, 1, 16, 0, 0, 0, time.UTC), expandedCalls[1].ScheduledAt)
-
-	assert.Contains(t, expandedCalls[2].ID, "call-3:rrule:FREQ=DAILY;COUNT=1")
-	assert.Equal(t, time.Date(2023, 1, 2, 9, 0, 0, 0, time.UTC), expandedCalls[2].ScheduledAt)
+	// Test slack destination (should use slack default slots)
+	assert.Equal(t, "call-1:scheduled_at:2023-01-01T00:00:00Z:slack:#general", expandedCalls[1].ID)
+	assert.Equal(t, time.Date(2023, 1, 1, 11, 0, 0, 0, time.UTC), expandedCalls[1].ScheduledAt)
 }

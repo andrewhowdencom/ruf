@@ -74,18 +74,26 @@ otel:
 # If you enable this feature, any recurring calls, or calls scheduled at midnight, will be
 # scheduled in the next available time slot.
 #
-# slots:
-#   # timezone is the timezone to use for the time slots.
-#   # It should be a valid IANA Time Zone database name (e.g. "Europe/Berlin").
-#   timezone: "UTC"
-#   # days is a map of days of the week to a list of time slots.
-#   # The time slots should be in the format "HH:MM".
-#   days:
-#     monday:
-#       - "09:00"
-#       - "14:00"
-#     tuesday:
-#       - "10:00"
+slots:
+  # timezone is the timezone to use for the time slots.
+  # It should be a valid IANA Time Zone database name (e.g. "Europe/Berlin").
+  timezone: "UTC"
+  # default is the default set of slots to use for all destinations.
+  default:
+    monday:
+      - "09:00"
+      - "14:00"
+    tuesday:
+      - "10:00"
+  # You can also specify slots on a per-destination-type basis.
+  slack:
+    default:
+      monday:
+        - "10:00"
+    # Or even on a per-destination basis.
+    "#general":
+      monday:
+        - "11:00"
     metrics:
       # endpoint is the OTLP endpoint to send metrics to.
       endpoint: <your_otlp_metrics_endpoint>

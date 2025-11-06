@@ -59,10 +59,20 @@ source:
 
 # otel contains the configuration for OpenTelemetry.
 otel:
-  # endpoint is the OTLP endpoint to send traces and metrics to.
-  endpoint: <your_otlp_endpoint>
-  # headers is a map of headers to send with OTLP requests.
-  # For example, to authenticate with Grafana Cloud, you would use:
-  # headers:
-  #   Authorization: <your_grafana_cloud_authorization_header>
-  headers: {}
+  exporter:
+    traces:
+      # endpoint is the OTLP endpoint to send traces to.
+      endpoint: <your_otlp_traces_endpoint>
+      # headers is a map of headers to send with OTLP trace requests.
+      # For example, to authenticate with Grafana Cloud, you would use:
+      # headers:
+      #   Authorization: <your_grafana_cloud_authorization_header>
+      headers: {}
+    metrics:
+      # endpoint is the OTLP endpoint to send metrics to.
+      endpoint: <your_otlp_metrics_endpoint>
+      # headers is a map of headers to send with OTLP metric requests.
+      # For example, to authenticate with Grafana Cloud, you would use:
+      # headers:
+      #   Authorization: <your_grafana_cloud_authorization_header>
+      headers: {}

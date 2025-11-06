@@ -111,7 +111,7 @@ var sendCmd = &cobra.Command{
 }
 
 func init() {
-	debugCmd.AddCommand(sendCmd)
+	dispatcherCmd.AddCommand(sendCmd)
 	sendCmd.Flags().String("id", "", "ID of the call to send")
 	sendCmd.Flags().String("destination", "", "Destination to send the message to")
 	sendCmd.Flags().String("type", "", "Type of the destination (e.g., slack, email)")

@@ -10,6 +10,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
+	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -29,7 +30,13 @@ var scheduledListCmd = &cobra.Command{
 		destType, _ := cmd.Flags().GetString("type")
 		destination, _ := cmd.Flags().GetString("destination")
 
-		sched := scheduler.New()
+		store, err := datastore.NewStore()
+		if err != nil {
+			return fmt.Errorf("failed to create store: %w", err)
+		}
+		defer store.Close()
+
+		sched := scheduler.New(store)
 		return doScheduledList(s, sched, cmd.OutOrStdout(), destType, destination)
 	},
 }

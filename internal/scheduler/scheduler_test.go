@@ -23,7 +23,10 @@ func TestSchedulerExpand(t *testing.T) {
 
 	s := scheduler.New(store)
 
-	viper.Set("slots.days", map[string][]string{})
+	viper.Set("slots.timezone", "UTC")
+	viper.Set("slots.days", map[string][]string{
+		"sunday": {"10:00", "16:00"},
+	})
 
 	// Set 'now' to a time before the default RRule start time (09:00) to ensure the test is valid.
 	now := time.Date(2023, 1, 1, 8, 0, 0, 0, time.UTC)
@@ -81,11 +84,11 @@ func TestSchedulerExpand(t *testing.T) {
 
 	// Test cron call (call-2)
 	assert.Equal(t, "call-2:cron:0 14 * * *", expandedCalls[1].ID)
-	assert.Equal(t, time.Date(2023, 1, 1, 14, 0, 0, 0, time.UTC), expandedCalls[1].ScheduledAt)
+	assert.Equal(t, time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC), expandedCalls[1].ScheduledAt)
 
 	// Test RRule call (call-3)
 	assert.Contains(t, expandedCalls[2].ID, "call-3:rrule:FREQ=DAILY;COUNT=1")
-	assert.Equal(t, time.Date(2023, 1, 1, 9, 0, 0, 0, time.UTC), expandedCalls[2].ScheduledAt) // Should be 09:00
+	assert.Equal(t, time.Date(2023, 1, 1, 16, 0, 0, 0, time.UTC), expandedCalls[2].ScheduledAt)
 
 	// Test event-based call (call-4)
 	assert.Equal(t, "call-4:sequence:event-1:2023-01-01T08:30:00Z", expandedCalls[3].ID)

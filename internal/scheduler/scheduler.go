@@ -72,6 +72,8 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 					}
 					// Check for the next run time within a recent window to catch jobs that should have just run.
 					effectiveScheduledAt := schedule.Next(now.Add(-2 * time.Minute)).Truncate(time.Minute)
+					y, m, d := effectiveScheduledAt.Date()
+					effectiveScheduledAt = time.Date(y, m, d, 0, 0, 0, 0, effectiveScheduledAt.Location())
 
 					newCall := createCallFromDefinition(callDef)
 					slot, err := s.findNextAvailableSlot(newCall, effectiveScheduledAt, now)
@@ -110,10 +112,6 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 							continue
 						}
 						rOption.Dtstart = dtstart.UTC()
-					} else if !strings.Contains(trigger.RRule, "BYHOUR") {
-						// If no DStart and no BYHOUR, default the time to 09:00 UTC of the current day.
-						year, month, day := now.Date()
-						rOption.Dtstart = time.Date(year, month, day, 9, 0, 0, 0, time.UTC)
 					} else {
 						// If no DStart but BYHOUR is present, or for any other case, use 'now'.
 						rOption.Dtstart = now
@@ -129,7 +127,9 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 					// Look for occurrences in the next 24 hours, with a 2-minute lookback to catch recent events.
 					for _, occurrence := range rule.Between(now.Add(-2*time.Minute), now.Add(24*time.Hour), true) {
 						newCall := createCallFromDefinition(callDef)
-						slot, err := s.findNextAvailableSlot(newCall, occurrence.UTC(), now)
+						y, m, d := occurrence.Date()
+						midnightOccurrence := time.Date(y, m, d, 0, 0, 0, 0, occurrence.Location())
+						slot, err := s.findNextAvailableSlot(newCall, midnightOccurrence, now)
 						if err != nil {
 							slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
 							continue

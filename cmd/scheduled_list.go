@@ -3,18 +3,16 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/model"
+	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
-	"github.com/gorhill/cronexpr"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/teambition/rrule-go"
 )
 
 // scheduledListCmd represents the list command
@@ -31,7 +29,8 @@ var scheduledListCmd = &cobra.Command{
 		destType, _ := cmd.Flags().GetString("type")
 		destination, _ := cmd.Flags().GetString("destination")
 
-		return doScheduledList(s, cmd.OutOrStdout(), destType, destination)
+		sched := scheduler.New()
+		return doScheduledList(s, sched, cmd.OutOrStdout(), destType, destination)
 	},
 }
 
@@ -47,7 +46,7 @@ type scheduledCall struct {
 	Destinations  []model.Destination
 }
 
-func doScheduledList(s sourcer.Sourcer, w io.Writer, destType, destination string) error {
+func doScheduledList(s sourcer.Sourcer, sched *scheduler.Scheduler, w io.Writer, destType, destination string) error {
 	urls := viper.GetStringSlice("source.urls")
 	if len(urls) == 0 {
 		fmt.Fprintln(w, "No source URLs configured.")
@@ -57,101 +56,57 @@ func doScheduledList(s sourcer.Sourcer, w io.Writer, destType, destination strin
 	var allScheduledCalls []scheduledCall
 	now := time.Now().UTC()
 
+	var sources []*sourcer.Source
 	for _, url := range urls {
-		source, _, err := s.Source(url) // Correctly handle the 3 return values
+		source, _, err := s.Source(url)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error sourcing from %s: %v\n", url, err)
-			continue
+			return fmt.Errorf("failed to source from %s: %w", url, err)
 		}
-		if source == nil { // Skip invalid or empty sources
-			continue
-		}
+		sources = append(sources, source)
+	}
 
-		campaignName := source.Campaign.Name
-		if campaignName == "" {
-			campaignName = "announcements"
-		}
+	expandedCalls := sched.Expand(sources, now)
 
-		for _, call := range source.Calls {
-			// If filters are provided, check if the call has a matching destination.
-			if destType != "" || destination != "" {
-				matchFound := false
-				for _, d := range call.Destinations {
-					typeMatch := destType == "" || d.Type == destType
-					destMatch := destination == ""
-					if !destMatch {
-						for _, to := range d.To {
-							if to == destination {
-								destMatch = true
-								break
-							}
+	for _, call := range expandedCalls {
+		// If filters are provided, check if the call has a matching destination.
+		if destType != "" || destination != "" {
+			matchFound := false
+			for _, d := range call.Destinations {
+				typeMatch := destType == "" || d.Type == destType
+				destMatch := destination == ""
+				if !destMatch {
+					for _, to := range d.To {
+						if to == destination {
+							destMatch = true
+							break
 						}
 					}
-					if typeMatch && destMatch {
-						matchFound = true
-						break
-					}
 				}
-				if !matchFound {
-					continue // Skip this call if it doesn't match the filters.
+				if typeMatch && destMatch {
+					matchFound = true
+					break
 				}
 			}
-
-			for _, trigger := range call.Triggers {
-				var next time.Time
-				var scheduleDef, eventSequence string
-				isEvent := false
-
-				switch {
-				case !trigger.ScheduledAt.IsZero():
-					next = trigger.ScheduledAt.UTC()
-					scheduleDef = trigger.ScheduledAt.Format(time.RFC3339)
-
-				case trigger.Cron != "":
-					expr, err := cronexpr.Parse(trigger.Cron)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error parsing Cron for call '%s': %v\n", call.Subject, err)
-						continue
-					}
-					next = expr.Next(now)
-					scheduleDef = trigger.Cron
-
-				case trigger.RRule != "":
-					r, err := rrule.StrToRRule(trigger.RRule)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error parsing RRule for call '%s': %v\n", call.Subject, err)
-						continue
-					}
-					next = r.After(now, true)
-					scheduleDef = trigger.RRule
-
-				case trigger.Delta != "" && trigger.Sequence != "":
-					isEvent = true
-					scheduleDef = trigger.Delta
-					eventSequence = trigger.Sequence
-
-				default:
-					continue
-				}
-
-				if !isEvent && next.Before(now) {
-					continue
-				}
-
-				firstLine := strings.Split(call.Content, "\n")[0]
-
-				allScheduledCalls = append(allScheduledCalls, scheduledCall{
-					NextRun:       next,
-					ScheduleDef:   scheduleDef,
-					Campaign:      campaignName,
-					Subject:       call.Subject,
-					Content:       firstLine,
-					IsEvent:       isEvent,
-					EventSequence: eventSequence,
-					Destinations:  call.Destinations,
-				})
+			if !matchFound {
+				continue // Skip this call if it doesn't match the filters.
 			}
 		}
+
+		if call.ScheduledAt.Before(now) {
+			continue
+		}
+
+		firstLine := strings.Split(call.Content, "\n")[0]
+
+		allScheduledCalls = append(allScheduledCalls, scheduledCall{
+			NextRun:      call.ScheduledAt,
+			ScheduleDef:  call.ID, // Using the expanded call ID as the schedule definition
+			Campaign:     call.Campaign.Name,
+			Subject:      call.Subject,
+			Content:      firstLine,
+			IsEvent:      false, // Expanded calls are always time-based
+			Destinations: call.Destinations,
+		})
 	}
 
 	sortAndDisplay(allScheduledCalls, w)
@@ -164,28 +119,14 @@ func sortAndDisplay(calls []scheduledCall, w io.Writer) {
 		return
 	}
 
-	var eventCalls, timeBasedCalls []scheduledCall
-	for _, c := range calls {
-		if c.IsEvent {
-			eventCalls = append(eventCalls, c)
-		} else {
-			timeBasedCalls = append(timeBasedCalls, c)
-		}
-	}
-
-	sort.Slice(eventCalls, func(i, j int) bool {
-		return eventCalls[i].Campaign < eventCalls[j].Campaign
+	sort.Slice(calls, func(i, j int) bool {
+		return calls[i].NextRun.Before(calls[j].NextRun)
 	})
-	sort.Slice(timeBasedCalls, func(i, j int) bool {
-		return timeBasedCalls[i].NextRun.Before(timeBasedCalls[j].NextRun)
-	})
-
-	sortedCalls := append(eventCalls, timeBasedCalls...)
 
 	table := tablewriter.NewWriter(w)
-	table.Header([]string{"Next Run", "Schedule", "Campaign", "Subject", "Content", "Destinations"})
+	table.Header("Next Run", "Schedule", "Campaign", "Subject", "Content", "Destinations")
 
-	for _, c := range sortedCalls {
+	for _, c := range calls {
 		nextRunDisplay := c.NextRun.Format(time.RFC1123)
 		if c.IsEvent {
 			nextRunDisplay = fmt.Sprintf("On Event '%s'", c.EventSequence)

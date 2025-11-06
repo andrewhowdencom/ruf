@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/model"
+	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -27,9 +28,10 @@ func TestDoScheduledList(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 	defer viper.Reset()
 
-	futureTime := time.Now().Add(1 * time.Hour).UTC()
-	farFutureTime := time.Now().Add(2 * time.Hour).UTC()
-	pastTime := time.Now().Add(-1 * time.Hour).UTC()
+	now := time.Now().UTC()
+	futureTime := now.Add(1 * time.Hour)
+	farFutureTime := now.Add(2 * time.Hour)
+	pastTime := now.Add(-1 * time.Hour)
 
 	mockSource := &sourcer.Source{
 		Campaign: model.Campaign{
@@ -37,31 +39,25 @@ func TestDoScheduledList(t *testing.T) {
 		},
 		Calls: []model.Call{
 			{
-				Subject: "Past Call", Content: "This should be ignored.",
+				ID: "past-call", Subject: "Past Call", Content: "This should be ignored.",
 				Triggers: []model.Trigger{{ScheduledAt: pastTime}},
 			},
 			{
-				Subject: "Far Future Call", Content: "Second in time-based list.",
+				ID: "far-future-call", Subject: "Far Future Call", Content: "Second in time-based list.",
 				Triggers: []model.Trigger{{ScheduledAt: farFutureTime}},
 			},
 			{
-				Subject: "Event Call", Content: "First in the overall list.",
-				Triggers: []model.Trigger{{Sequence: "start", Delta: "5m"}},
-			},
-			{
-				Subject: "Future Call", Content: "First in time-based list.",
+				ID: "future-call", Subject: "Future Call", Content: "First in time-based list.",
 				Triggers: []model.Trigger{{ScheduledAt: futureTime}},
 			},
 		},
-		Events: []model.Event{
-			{Sequence: "start"},
-		},
 	}
 
-	sourcer := &mockSourcer{source: mockSource}
+	s := &mockSourcer{source: mockSource}
+	sched := scheduler.New()
 	var buf bytes.Buffer
 
-	err := doScheduledList(sourcer, &buf, "", "")
+	err := doScheduledList(s, sched, &buf, "", "")
 	assert.NoError(t, err)
 
 	output := buf.String()
@@ -70,20 +66,13 @@ func TestDoScheduledList(t *testing.T) {
 	assert.NotContains(t, output, "Past Call")
 
 	// 2. Check that all other calls are included
-	assert.Contains(t, output, "Event Call")
 	assert.Contains(t, output, "Future Call")
 	assert.Contains(t, output, "Far Future Call")
-	assert.Contains(t, output, "On Event 'start'")
 
 	// 3. Check the sorting order
-	eventCallIndex := strings.Index(output, "Event Call")
 	futureCallIndex := strings.Index(output, "Future Call")
 	farFutureCallIndex := strings.Index(output, "Far Future Call")
 
-	// Event call should be first
-	assert.True(t, eventCallIndex < futureCallIndex, "Event Call should appear before Future Call")
-	assert.True(t, eventCallIndex < farFutureCallIndex, "Event Call should appear before Far Future Call")
-
-	// Then the time-based calls, sorted by their schedule
+	// Time-based calls should be sorted by their schedule
 	assert.True(t, futureCallIndex < farFutureCallIndex, "Future Call should appear before Far Future Call")
 }

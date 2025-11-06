@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -16,10 +15,9 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/processor"
+	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
-	"github.com/robfig/cron/v3"
 	"github.com/spf13/viper"
-	"github.com/teambition/rrule-go"
 )
 
 // Worker is responsible for polling for calls and sending them.
@@ -28,18 +26,20 @@ type Worker struct {
 	slackClient     slack.Client
 	emailClient     email.Client
 	poller          *poller.Poller
+	scheduler       *scheduler.Scheduler
 	refreshInterval time.Duration
 	sources         []*sourcer.Source
 	mu              sync.RWMutex
 }
 
 // New creates a new worker.
-func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, refreshInterval time.Duration) *Worker {
+func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, scheduler *scheduler.Scheduler, refreshInterval time.Duration) *Worker {
 	return &Worker{
 		store:           store,
 		slackClient:     slackClient,
 		emailClient:     emailClient,
 		poller:          poller,
+		scheduler:       scheduler,
 		refreshInterval: refreshInterval,
 	}
 }
@@ -119,7 +119,7 @@ func (w *Worker) ProcessMessages() error {
 	sources := w.sources
 	w.mu.RUnlock()
 
-	calls := w.ExpandCalls(sources, time.Now())
+	calls := w.scheduler.Expand(sources, time.Now())
 
 	for _, call := range calls {
 		if err := w.processCall(call); err != nil {
@@ -130,137 +130,6 @@ func (w *Worker) ProcessMessages() error {
 	return nil
 }
 
-// ExpandCalls takes a list of sources and expands the call definitions within them
-// into a flat list of concrete, scheduled calls based on their triggers.
-func (w *Worker) ExpandCalls(sources []*sourcer.Source, now time.Time) []*model.Call {
-	now = now.UTC() // Ensure 'now' is in UTC for consistent calculations.
-	var expandedCalls []*model.Call
-
-	for _, source := range sources {
-		// Build an event map for the current source to allow for efficient lookups.
-		eventsBySequence := make(map[string][]model.Event)
-		for _, event := range source.Events {
-			eventsBySequence[event.Sequence] = append(eventsBySequence[event.Sequence], event)
-		}
-
-		for _, callDef := range source.Calls {
-			for _, trigger := range callDef.Triggers {
-				// Handle direct schedule triggers
-				if !trigger.ScheduledAt.IsZero() {
-					newCall := w.createCallFromDefinition(callDef)
-					newCall.ScheduledAt = trigger.ScheduledAt
-					newCall.ID = fmt.Sprintf("%s:scheduled_at:%s", callDef.ID, trigger.ScheduledAt.Format(time.RFC3339))
-					expandedCalls = append(expandedCalls, newCall)
-				}
-
-				// Handle cron triggers
-				if trigger.Cron != "" {
-					parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-					schedule, err := parser.Parse(trigger.Cron)
-					if err != nil {
-						slog.Error("failed to parse cron", "error", err, "cron", trigger.Cron)
-						continue
-					}
-					effectiveScheduledAt := schedule.Next(now.Add(-2 * time.Minute)).Truncate(time.Minute)
-
-					newCall := w.createCallFromDefinition(callDef)
-					newCall.ScheduledAt = effectiveScheduledAt
-					newCall.ID = fmt.Sprintf("%s:cron:%s", callDef.ID, trigger.Cron)
-					expandedCalls = append(expandedCalls, newCall)
-				}
-
-				// Handle RRule triggers
-				if trigger.RRule != "" {
-					rOption, err := rrule.StrToROption(trigger.RRule)
-					if err != nil {
-						slog.Error("failed to parse rrule", "error", err, "rrule", trigger.RRule)
-						continue
-					}
-
-					if trigger.DStart != "" {
-						parts := strings.SplitN(trigger.DStart, ":", 2)
-						if len(parts) != 2 {
-							slog.Error("invalid dstart format", "dstart", trigger.DStart)
-							continue
-						}
-						tzid := strings.TrimPrefix(parts[0], "TZID=")
-						loc, err := time.LoadLocation(tzid)
-						if err != nil {
-							slog.Error("failed to load location", "error", err, "tzid", tzid)
-							continue
-						}
-						dtstart, err := time.ParseInLocation("20060102T150405", parts[1], loc)
-						if err != nil {
-							slog.Error("failed to parse dstart time", "error", err, "dstart", trigger.DStart)
-							continue
-						}
-						rOption.Dtstart = dtstart.UTC()
-					} else if !strings.Contains(trigger.RRule, "BYHOUR") {
-						// If no DStart and no BYHOUR, default the time to 09:00 UTC of the current day.
-						year, month, day := now.Date()
-						rOption.Dtstart = time.Date(year, month, day, 9, 0, 0, 0, time.UTC)
-					} else {
-						// If no DStart but BYHOUR is present, or for any other case, use 'now'.
-						rOption.Dtstart = now
-					}
-
-					rule, err := rrule.NewRRule(*rOption)
-					if err != nil {
-						slog.Error("failed to create rrule", "error", err, "rrule", trigger.RRule)
-						continue
-					}
-
-					// Use UTC for the 'between' calculation to ensure occurrences are consistent.
-					for _, occurrence := range rule.Between(now, now.Add(24*time.Hour), true) {
-						newCall := w.createCallFromDefinition(callDef)
-						newCall.ScheduledAt = occurrence.UTC() // Ensure scheduled time is stored as UTC.
-						newCall.ID = fmt.Sprintf("%s:rrule:%s:%s", callDef.ID, trigger.RRule, occurrence.Format(time.RFC3339))
-						expandedCalls = append(expandedCalls, newCall)
-					}
-				} else if trigger.DStart != "" {
-					slog.Error("dstart specified without rrule", "dstart", trigger.DStart)
-					continue
-				}
-
-				// Handle event sequence triggers
-				if trigger.Sequence != "" && trigger.Delta != "" {
-					if matchingEvents, ok := eventsBySequence[trigger.Sequence]; ok {
-						for _, event := range matchingEvents {
-							delta, err := time.ParseDuration(trigger.Delta)
-							if err != nil {
-								slog.Error("failed to parse delta", "error", err, "delta", trigger.Delta)
-								continue
-							}
-
-							newCall := w.createCallFromDefinition(callDef)
-							newCall.ScheduledAt = event.StartTime.Add(delta)
-							newCall.Destinations = append(newCall.Destinations, event.Destinations...)
-							newCall.ID = fmt.Sprintf("%s:sequence:%s:%s", callDef.ID, trigger.Sequence, event.StartTime.Format(time.RFC3339))
-							expandedCalls = append(expandedCalls, newCall)
-						}
-					}
-				}
-			}
-		}
-	}
-	return expandedCalls
-}
-
-// createCallFromDefinition creates a new call instance from a call definition,
-// ensuring that mutable fields like Destinations are deep-copied.
-func (w *Worker) createCallFromDefinition(def model.Call) *model.Call {
-	newCall := def // Start with a shallow copy
-
-	// If the campaign name is empty, set a default.
-	if newCall.Campaign.Name == "" {
-		newCall.Campaign.Name = "announcements"
-	}
-
-	newCall.Destinations = make([]model.Destination, len(def.Destinations))
-	copy(newCall.Destinations, def.Destinations)
-	newCall.Triggers = nil // Triggers are not needed in the expanded call
-	return &newCall
-}
 
 func (w *Worker) processCall(call *model.Call) error {
 	slog.Debug("processing call", "call_id", call.ID)

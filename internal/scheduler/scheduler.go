@@ -46,118 +46,126 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 
 		for _, callDef := range source.Calls {
 			for _, trigger := range callDef.Triggers {
-				// Handle direct schedule triggers
-				if !trigger.ScheduledAt.IsZero() {
-					newCall := createCallFromDefinition(callDef)
-					newCall.ScheduledAt = trigger.ScheduledAt
-					newCall.ID = fmt.Sprintf("%s:scheduled_at:%s", callDef.ID, trigger.ScheduledAt.Format(time.RFC3339))
-					if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
-						slot, err := s.findNextAvailableSlot(newCall, newCall.ScheduledAt, now)
-						if err != nil {
-							slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
-							continue
-						}
-						newCall.ScheduledAt = slot
-					}
-					expandedCalls = append(expandedCalls, newCall)
-				}
-
-				// Handle cron triggers
-				if trigger.Cron != "" {
-					parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-					schedule, err := parser.Parse(trigger.Cron)
-					if err != nil {
-						slog.Error("failed to parse cron", "error", err, "cron", trigger.Cron)
-						continue
-					}
-					// Check for the next run time within a recent window to catch jobs that should have just run.
-					effectiveScheduledAt := schedule.Next(now.Add(-2 * time.Minute)).Truncate(time.Minute)
-					y, m, d := effectiveScheduledAt.Date()
-					effectiveScheduledAt = time.Date(y, m, d, 0, 0, 0, 0, effectiveScheduledAt.Location())
-
-					newCall := createCallFromDefinition(callDef)
-					slot, err := s.findNextAvailableSlot(newCall, effectiveScheduledAt, now)
-					if err != nil {
-						slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
-						continue
-					}
-					newCall.ScheduledAt = slot
-					newCall.ID = fmt.Sprintf("%s:cron:%s", callDef.ID, trigger.Cron)
-					expandedCalls = append(expandedCalls, newCall)
-				}
-
-				// Handle RRule triggers
-				if trigger.RRule != "" {
-					rOption, err := rrule.StrToROption(trigger.RRule)
-					if err != nil {
-						slog.Error("failed to parse rrule", "error", err, "rrule", trigger.RRule)
-						continue
-					}
-
-					if trigger.DStart != "" {
-						parts := strings.SplitN(trigger.DStart, ":", 2)
-						if len(parts) != 2 {
-							slog.Error("invalid dstart format", "dstart", trigger.DStart)
-							continue
-						}
-						tzid := strings.TrimPrefix(parts[0], "TZID=")
-						loc, err := time.LoadLocation(tzid)
-						if err != nil {
-							slog.Error("failed to load location", "error", err, "tzid", tzid)
-							continue
-						}
-						dtstart, err := time.ParseInLocation("20060102T150405", parts[1], loc)
-						if err != nil {
-							slog.Error("failed to parse dstart time", "error", err, "dstart", trigger.DStart)
-							continue
-						}
-						rOption.Dtstart = dtstart.UTC()
-					} else {
-						// If no DStart but BYHOUR is present, or for any other case, use 'now'.
-						rOption.Dtstart = now
-					}
-
-					rule, err := rrule.NewRRule(*rOption)
-					if err != nil {
-						slog.Error("failed to create rrule", "error", err, "rrule", trigger.RRule)
-						continue
-					}
-
-					// Use UTC for the 'between' calculation to ensure occurrences are consistent.
-					// Look for occurrences in the next 24 hours, with a 2-minute lookback to catch recent events.
-					for _, occurrence := range rule.Between(now.Add(-2*time.Minute), now.Add(24*time.Hour), true) {
+				for _, destination := range callDef.Destinations {
+					// Handle direct schedule triggers
+					if !trigger.ScheduledAt.IsZero() {
 						newCall := createCallFromDefinition(callDef)
-						y, m, d := occurrence.Date()
-						midnightOccurrence := time.Date(y, m, d, 0, 0, 0, 0, occurrence.Location())
-						slot, err := s.findNextAvailableSlot(newCall, midnightOccurrence, now)
-						if err != nil {
-							slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
-							continue
-						}
-						newCall.ScheduledAt = slot
-						newCall.ID = fmt.Sprintf("%s:rrule:%s:%s", callDef.ID, trigger.RRule, occurrence.Format(time.RFC3339))
-						expandedCalls = append(expandedCalls, newCall)
-					}
-				} else if trigger.DStart != "" {
-					slog.Error("dstart specified without rrule", "dstart", trigger.DStart)
-					continue
-				}
-
-				// Handle event sequence triggers
-				if trigger.Sequence != "" && trigger.Delta != "" {
-					if matchingEvents, ok := eventsBySequence[trigger.Sequence]; ok {
-						for _, event := range matchingEvents {
-							delta, err := time.ParseDuration(trigger.Delta)
+						newCall.ScheduledAt = trigger.ScheduledAt
+						newCall.ID = fmt.Sprintf("%s:scheduled_at:%s:%s:%s", callDef.ID, trigger.ScheduledAt.Format(time.RFC3339), destination.Type, destination.To[0])
+						if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
+							slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
 							if err != nil {
-								slog.Error("failed to parse delta", "error", err, "delta", trigger.Delta)
+								slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
 								continue
 							}
+							newCall.ScheduledAt = slot
+						}
+						newCall.Destinations = []model.Destination{destination}
+						expandedCalls = append(expandedCalls, newCall)
+					}
 
+					// Handle cron triggers
+					if trigger.Cron != "" {
+						parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+						schedule, err := parser.Parse(trigger.Cron)
+						if err != nil {
+							slog.Error("failed to parse cron", "error", err, "cron", trigger.Cron)
+							continue
+						}
+						// Check for the next run time within a recent window to catch jobs that should have just run.
+						effectiveScheduledAt := schedule.Next(now.Add(-2 * time.Minute)).Truncate(time.Minute)
+
+						newCall := createCallFromDefinition(callDef)
+						newCall.ScheduledAt = effectiveScheduledAt
+						if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
+							slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
+							if err != nil {
+								slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
+								continue
+							}
+							newCall.ScheduledAt = slot
+						}
+						newCall.ID = fmt.Sprintf("%s:cron:%s:%s:%s", callDef.ID, trigger.Cron, destination.Type, destination.To[0])
+						newCall.Destinations = []model.Destination{destination}
+						expandedCalls = append(expandedCalls, newCall)
+					}
+
+					// Handle RRule triggers
+					if trigger.RRule != "" {
+						rOption, err := rrule.StrToROption(trigger.RRule)
+						if err != nil {
+							slog.Error("failed to parse rrule", "error", err, "rrule", trigger.RRule)
+							continue
+						}
+
+						if trigger.DStart != "" {
+							parts := strings.SplitN(trigger.DStart, ":", 2)
+							if len(parts) != 2 {
+								slog.Error("invalid dstart format", "dstart", trigger.DStart)
+								continue
+							}
+							tzid := strings.TrimPrefix(parts[0], "TZID=")
+							loc, err := time.LoadLocation(tzid)
+							if err != nil {
+								slog.Error("failed to load location", "error", err, "tzid", tzid)
+								continue
+							}
+							dtstart, err := time.ParseInLocation("20060102T150405", parts[1], loc)
+							if err != nil {
+								slog.Error("failed to parse dstart time", "error", err, "dstart", trigger.DStart)
+								continue
+							}
+							rOption.Dtstart = dtstart.UTC()
+						} else {
+							// If no DStart but BYHOUR is present, or for any other case, use 'now'.
+							rOption.Dtstart = now
+						}
+
+						rule, err := rrule.NewRRule(*rOption)
+						if err != nil {
+							slog.Error("failed to create rrule", "error", err, "rrule", trigger.RRule)
+							continue
+						}
+
+						// Use UTC for the 'between' calculation to ensure occurrences are consistent.
+						// Look for occurrences in the next 24 hours, with a 2-minute lookback to catch recent events.
+						for _, occurrence := range rule.Between(now.Add(-2*time.Minute), now.Add(24*time.Hour), true) {
 							newCall := createCallFromDefinition(callDef)
-							newCall.ScheduledAt = event.StartTime.Add(delta)
-							newCall.Destinations = append(newCall.Destinations, event.Destinations...)
-							newCall.ID = fmt.Sprintf("%s:sequence:%s:%s", callDef.ID, trigger.Sequence, event.StartTime.Format(time.RFC3339))
+							newCall.ScheduledAt = occurrence
+							if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
+								slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
+								if err != nil {
+									slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
+									continue
+								}
+								newCall.ScheduledAt = slot
+							}
+							newCall.ID = fmt.Sprintf("%s:rrule:%s:%s:%s:%s", callDef.ID, trigger.RRule, occurrence.Format(time.RFC3339), destination.Type, destination.To[0])
+							newCall.Destinations = []model.Destination{destination}
 							expandedCalls = append(expandedCalls, newCall)
+						}
+					} else if trigger.DStart != "" {
+						slog.Error("dstart specified without rrule", "dstart", trigger.DStart)
+						continue
+					}
+
+					// Handle event sequence triggers
+					if trigger.Sequence != "" && trigger.Delta != "" {
+						if matchingEvents, ok := eventsBySequence[trigger.Sequence]; ok {
+							for _, event := range matchingEvents {
+								delta, err := time.ParseDuration(trigger.Delta)
+								if err != nil {
+									slog.Error("failed to parse delta", "error", err, "delta", trigger.Delta)
+									continue
+								}
+
+								newCall := createCallFromDefinition(callDef)
+								newCall.ScheduledAt = event.StartTime.Add(delta)
+								newCall.Destinations = append(newCall.Destinations, event.Destinations...)
+								newCall.ID = fmt.Sprintf("%s:sequence:%s:%s:%s:%s", callDef.ID, trigger.Sequence, event.StartTime.Format(time.RFC3339), destination.Type, destination.To[0])
+								newCall.Destinations = []model.Destination{destination}
+								expandedCalls = append(expandedCalls, newCall)
+							}
 						}
 					}
 				}
@@ -169,13 +177,31 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 
 // createCallFromDefinition creates a new call instance from a call definition,
 // ensuring that mutable fields like Destinations are deep-copied.
-func (s *Scheduler) findNextAvailableSlot(call *model.Call, scheduledAt time.Time, now time.Time) (time.Time, error) {
+func (s *Scheduler) findNextAvailableSlot(call *model.Call, destination model.Destination, scheduledAt time.Time, now time.Time) (time.Time, error) {
 	loc, err := time.LoadLocation(viper.GetString("slots.timezone"))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to load timezone: %w", err)
 	}
 
-	slotsByDay := viper.GetStringMapStringSlice("slots.days")
+	// Try to get the slots for the specific destination, then the type, then the default.
+	// The destination `to` field can contain special characters that viper doesn't like, so we need to escape them.
+	// We'll replace them with underscores.
+	safeTo := strings.ReplaceAll(destination.To[0], ".", "_")
+	safeTo = strings.ReplaceAll(safeTo, "#", "_")
+	keys := []string{
+		fmt.Sprintf("slots.%s.%s", destination.Type, safeTo),
+		fmt.Sprintf("slots.%s.default", destination.Type),
+		"slots.default",
+	}
+	var slotsByDay map[string][]string
+	for _, key := range keys {
+		if viper.IsSet(key) {
+			slotsByDay = viper.GetStringMapStringSlice(key)
+			break
+		}
+	}
+
+	// If there are no slots defined, we can just return the scheduled time.
 	if len(slotsByDay) == 0 {
 		return scheduledAt, nil
 	}
@@ -201,7 +227,9 @@ func (s *Scheduler) findNextAvailableSlot(call *model.Call, scheduledAt time.Tim
 					continue
 				}
 
-				reserved, err := s.storer.ReserveSlot(slotTime, call.ID)
+				// The key for the reservation should be unique for the destination.
+				key := fmt.Sprintf("%s:%s", destination.Type, destination.To[0])
+				reserved, err := s.storer.ReserveSlot(slotTime, key)
 				if err != nil {
 					return time.Time{}, fmt.Errorf("failed to reserve slot: %w", err)
 				}
@@ -212,7 +240,7 @@ func (s *Scheduler) findNextAvailableSlot(call *model.Call, scheduledAt time.Tim
 		}
 	}
 
-	return time.Time{}, fmt.Errorf("no available slots found for call %s", call.ID)
+	return time.Time{}, fmt.Errorf("no available slots found for call %s, destination %s", call.ID, destination.To[0])
 }
 
 func createCallFromDefinition(def model.Call) *model.Call {

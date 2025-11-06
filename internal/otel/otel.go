@@ -3,6 +3,9 @@ package otel
 import (
 	"context"
 	"errors"
+	"log"
+	"time"
+
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -11,8 +14,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace"
-	"log"
-	"time"
 )
 
 // SetupOTelSDK bootstraps the OpenTelemetry pipeline.
@@ -39,7 +40,7 @@ func SetupOTelSDK(ctx context.Context, endpoint string, headers map[string]strin
 	otel.SetTextMapPropagator(prop)
 
 	traceExporter, err := otlptrace.New(ctx, otlptracehttp.NewClient(
-		otlptracehttp.WithEndpoint(endpoint),
+		otlptracehttp.WithEndpointURL(endpoint),
 		otlptracehttp.WithHeaders(headers),
 	))
 	if err != nil {
@@ -51,7 +52,7 @@ func SetupOTelSDK(ctx context.Context, endpoint string, headers map[string]strin
 	otel.SetTracerProvider(tracerProvider)
 
 	metricExporter, err := otlpmetrichttp.New(ctx,
-		otlpmetrichttp.WithEndpoint(endpoint),
+		otlpmetrichttp.WithEndpointURL(endpoint),
 		otlpmetrichttp.WithHeaders(headers),
 	)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/gorhill/cronexpr"
 	"github.com/olekukonko/tablewriter"
@@ -26,7 +27,11 @@ var scheduledListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to build sourcer: %w", err)
 		}
-		return doScheduledList(s, cmd.OutOrStdout())
+
+		destType, _ := cmd.Flags().GetString("type")
+		destination, _ := cmd.Flags().GetString("destination")
+
+		return doScheduledList(s, cmd.OutOrStdout(), destType, destination)
 	},
 }
 
@@ -39,9 +44,10 @@ type scheduledCall struct {
 	Content       string
 	IsEvent       bool
 	EventSequence string // Only for event-based calls.
+	Destinations  []model.Destination
 }
 
-func doScheduledList(s sourcer.Sourcer, w io.Writer) error {
+func doScheduledList(s sourcer.Sourcer, w io.Writer, destType, destination string) error {
 	urls := viper.GetStringSlice("source.urls")
 	if len(urls) == 0 {
 		fmt.Fprintln(w, "No source URLs configured.")
@@ -67,6 +73,30 @@ func doScheduledList(s sourcer.Sourcer, w io.Writer) error {
 		}
 
 		for _, call := range source.Calls {
+			// If filters are provided, check if the call has a matching destination.
+			if destType != "" || destination != "" {
+				matchFound := false
+				for _, d := range call.Destinations {
+					typeMatch := destType == "" || d.Type == destType
+					destMatch := destination == ""
+					if !destMatch {
+						for _, to := range d.To {
+							if to == destination {
+								destMatch = true
+								break
+							}
+						}
+					}
+					if typeMatch && destMatch {
+						matchFound = true
+						break
+					}
+				}
+				if !matchFound {
+					continue // Skip this call if it doesn't match the filters.
+				}
+			}
+
 			for _, trigger := range call.Triggers {
 				var next time.Time
 				var scheduleDef, eventSequence string
@@ -118,6 +148,7 @@ func doScheduledList(s sourcer.Sourcer, w io.Writer) error {
 					Content:       firstLine,
 					IsEvent:       isEvent,
 					EventSequence: eventSequence,
+					Destinations:  call.Destinations,
 				})
 			}
 		}
@@ -128,6 +159,11 @@ func doScheduledList(s sourcer.Sourcer, w io.Writer) error {
 }
 
 func sortAndDisplay(calls []scheduledCall, w io.Writer) {
+	if len(calls) == 0 {
+		fmt.Fprintln(w, "No scheduled calls found matching the criteria.")
+		return
+	}
+
 	var eventCalls, timeBasedCalls []scheduledCall
 	for _, c := range calls {
 		if c.IsEvent {
@@ -147,15 +183,20 @@ func sortAndDisplay(calls []scheduledCall, w io.Writer) {
 	sortedCalls := append(eventCalls, timeBasedCalls...)
 
 	table := tablewriter.NewWriter(w)
-	table.Header("Next Run", "Schedule", "Campaign", "Subject", "Content")
+	table.Header([]string{"Next Run", "Schedule", "Campaign", "Subject", "Content", "Destinations"})
 
 	for _, c := range sortedCalls {
-		nextRunDisplay := c.NextRun.Format("2006-01-02 15:04:05")
+		nextRunDisplay := c.NextRun.Format(time.RFC1123)
 		if c.IsEvent {
 			nextRunDisplay = fmt.Sprintf("On Event '%s'", c.EventSequence)
 		}
 
-		table.Append([]string{nextRunDisplay, c.ScheduleDef, c.Campaign, c.Subject, c.Content})
+		var destStrings []string
+		for _, d := range c.Destinations {
+			destStrings = append(destStrings, fmt.Sprintf("%s: %s", d.Type, strings.Join(d.To, ", ")))
+		}
+
+		table.Append([]string{nextRunDisplay, c.ScheduleDef, c.Campaign, c.Subject, c.Content, strings.Join(destStrings, "\n")})
 	}
 
 	table.Render()
@@ -163,4 +204,6 @@ func sortAndDisplay(calls []scheduledCall, w io.Writer) {
 
 func init() {
 	scheduledCmd.AddCommand(scheduledListCmd)
+	scheduledListCmd.Flags().String("type", "", "Filter by destination type (e.g., 'slack', 'email')")
+	scheduledListCmd.Flags().String("destination", "", "Filter by a specific destination (e.g., '#channel', 'user@example.com')")
 }

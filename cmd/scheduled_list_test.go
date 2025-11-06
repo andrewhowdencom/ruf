@@ -61,7 +61,7 @@ func TestDoScheduledList(t *testing.T) {
 	sourcer := &mockSourcer{source: mockSource}
 	var buf bytes.Buffer
 
-	err := doScheduledList(sourcer, &buf)
+	err := doScheduledList(sourcer, &buf, "", "")
 	assert.NoError(t, err)
 
 	output := buf.String()

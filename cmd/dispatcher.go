@@ -7,24 +7,28 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
 	"github.com/andrewhowdencom/ruf/internal/datastore"
+	"github.com/andrewhowdencom/ruf/internal/http"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// workerCmd represents the worker command
-var workerCmd = &cobra.Command{
-	Use:   "worker",
-	Short: "Run the worker to send calls",
-	Long:  `Run the worker to send calls.`,
+// dispatcherCmd represents the dispatcher command
+var dispatcherCmd = &cobra.Command{
+	Use:   "dispatcher",
+	Short: "Run the dispatcher to send calls",
+	Long:  `Run the dispatcher to send calls.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runWorker()
+		return runDispatcher()
 	},
 }
 
-func runWorker() error {
-	slog.Debug("running worker")
+func runDispatcher() error {
+	slog.Debug("running dispatcher")
+
+	go http.Start(viper.GetInt("dispatcher.port"))
+
 	store, err := datastore.NewStore()
 	if err != nil {
 		return fmt.Errorf("failed to create store: %w", err)
@@ -47,7 +51,7 @@ func runWorker() error {
 		return fmt.Errorf("failed to build sourcer: %w", err)
 	}
 
-	refreshInterval := viper.GetDuration("worker.refresh_interval")
+	refreshInterval := viper.GetDuration("dispatcher.refresh_interval")
 	p := poller.New(s, refreshInterval)
 
 	w := worker.New(store, slackClient, emailClient, p, refreshInterval)
@@ -55,7 +59,8 @@ func runWorker() error {
 }
 
 func init() {
-	rootCmd.AddCommand(workerCmd)
-	viper.SetDefault("worker.refresh_interval", "1h")
-	viper.SetDefault("worker.lookback_period", "24h")
+	rootCmd.AddCommand(dispatcherCmd)
+	viper.SetDefault("dispatcher.refresh_interval", "1h")
+	viper.SetDefault("dispatcher.lookback_period", "24h")
+	viper.SetDefault("dispatcher.port", 8080)
 }

@@ -19,8 +19,9 @@ jobs:
     - name: Google Auth
       uses: 'google-github-actions/auth@v1'
       with:
-        workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
-        service_account: '${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}'
+          project_id: andrewhowdencom
+          workload_identity_provider: projects/422614898574/locations/global/workloadIdentityPools/github--production/providers/github
+          service_account: github-actions-runner@andrewhowdencom.iam.gserviceaccount.com
 
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v1

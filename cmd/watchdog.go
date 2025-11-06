@@ -55,7 +55,7 @@ func runWatchdog() error {
 	refreshInterval := viper.GetDuration("watchdog.refresh_interval")
 	p := poller.New(s, refreshInterval)
 
-	sched := scheduler.New()
+	sched := scheduler.New(store)
 	w := worker.New(store, slackClient, emailClient, p, sched, refreshInterval)
 	return w.Run()
 }

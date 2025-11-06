@@ -5,14 +5,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/stretchr/testify/assert"
+	"github.com/andrewhowdencom/ruf/internal/kv/bbolt"
+	"os"
 )
 
 func TestSchedulerExpand(t *testing.T) {
-	s := scheduler.New()
+	dbPath := "test.db"
+	defer os.Remove(dbPath)
+
+	store, err := bbolt.NewTestStore(dbPath)
+	assert.NoError(t, err)
+
+	s := scheduler.New(store)
+
+	viper.Set("slots.days", map[string][]string{})
 
 	// Set 'now' to a time before the default RRule start time (09:00) to ensure the test is valid.
 	now := time.Date(2023, 1, 1, 8, 0, 0, 0, time.UTC)

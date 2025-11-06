@@ -9,8 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/ruf/internal/otel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -62,20 +60,37 @@ func init() {
 	viper.SetDefault("otel.headers", map[string]string{})
 }
 
+// getXDGConfigPath returns the path to the configuration directory according to the XDG Base Directory Specification.
+// It checks for the XDG_CONFIG_HOME environment variable and falls back to "$HOME/.config".
+func getXDGConfigPath(appName string) (string, error) {
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+	if configHome == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		configHome = filepath.Join(homeDir, ".config")
+	}
+	return filepath.Join(configHome, appName), nil
+}
+
 // InitConfig reads in config file and ENV variables if set.
 func InitConfig() {
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
 	} else {
+		// Add conventional config path for mounted secrets.
+		viper.AddConfigPath("/etc/ruf")
+
 		// Find xdg config path and set it for viper if found.
-		configPath, err := xdg.ConfigFile("ruf/config.yaml")
+		configPath, err := getXDGConfigPath("ruf")
 		if err == nil {
-			// Search config in the XDG config directory with name "config.yaml".
-			viper.AddConfigPath(filepath.Dir(configPath))
-			viper.SetConfigName(filepath.Base(configPath))
-			viper.SetConfigType("yaml")
+			// Search config in the XDG config directory.
+			viper.AddConfigPath(configPath)
 		}
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
 	}
 
 	viper.SetEnvPrefix("RUF")

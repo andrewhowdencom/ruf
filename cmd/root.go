@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
 	"github.com/andrewhowdencom/ruf/internal/otel"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -53,11 +54,10 @@ func init() {
 	viper.SetDefault("datastore.type", "bbolt")
 	viper.SetDefault("datastore.project_id", "")
 
-	rootCmd.PersistentFlags().String("otel-endpoint", "", "OpenTelemetry endpoint")
-	viper.BindPFlag("otel.endpoint", rootCmd.PersistentFlags().Lookup("otel-endpoint"))
-
-	viper.SetDefault("otel.endpoint", "")
-	viper.SetDefault("otel.headers", map[string]string{})
+	viper.SetDefault("otel.exporter.traces.endpoint", "")
+	viper.SetDefault("otel.exporter.traces.headers", map[string]string{})
+	viper.SetDefault("otel.exporter.metrics.endpoint", "")
+	viper.SetDefault("otel.exporter.metrics.headers", map[string]string{})
 }
 
 // getXDGConfigPath returns the path to the configuration directory according to the XDG Base Directory Specification.
@@ -122,8 +122,14 @@ func InitConfig() {
 	}
 
 	// Initialise OpenTelemetry
-	if viper.GetString("otel.endpoint") != "" {
-		otelShutdown, err := otel.SetupOTelSDK(context.Background(), viper.GetString("otel.endpoint"), viper.GetStringMapString("otel.headers"))
+	if viper.GetString("otel.exporter.traces.endpoint") != "" || viper.GetString("otel.exporter.metrics.endpoint") != "" {
+		otelShutdown, err := otel.SetupOTelSDK(
+			context.Background(),
+			viper.GetString("otel.exporter.traces.endpoint"),
+			viper.GetStringMapString("otel.exporter.traces.headers"),
+			viper.GetString("otel.exporter.metrics.endpoint"),
+			viper.GetStringMapString("otel.exporter.metrics.headers"),
+		)
 		if err != nil {
 			slog.Error("could not setup OpenTelemetry", "error", err)
 			os.Exit(1)

@@ -18,7 +18,7 @@ import (
 
 // SetupOTelSDK bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
-func SetupOTelSDK(ctx context.Context, endpoint string, headers map[string]string) (shutdown func(context.Context) error, err error) {
+func SetupOTelSDK(ctx context.Context, traceEndpoint string, traceHeaders map[string]string, metricEndpoint string, metricHeaders map[string]string) (shutdown func(context.Context) error, err error) {
 	var shutdownFuncs []func(context.Context) error
 
 	// shutdown calls cleanup functions registered via shutdownFuncs.
@@ -39,33 +39,37 @@ func SetupOTelSDK(ctx context.Context, endpoint string, headers map[string]strin
 	)
 	otel.SetTextMapPropagator(prop)
 
-	traceExporter, err := otlptrace.New(ctx, otlptracehttp.NewClient(
-		otlptracehttp.WithEndpointURL(endpoint),
-		otlptracehttp.WithHeaders(headers),
-	))
-	if err != nil {
-		return nil, err
+	if traceEndpoint != "" {
+		traceExporter, err := otlptrace.New(ctx, otlptracehttp.NewClient(
+			otlptracehttp.WithEndpointURL(traceEndpoint),
+			otlptracehttp.WithHeaders(traceHeaders),
+		))
+		if err != nil {
+			return nil, err
+		}
+
+		tracerProvider := trace.NewTracerProvider(trace.WithBatcher(traceExporter))
+		shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
+		otel.SetTracerProvider(tracerProvider)
 	}
 
-	tracerProvider := trace.NewTracerProvider(trace.WithBatcher(traceExporter))
-	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-	otel.SetTracerProvider(tracerProvider)
+	if metricEndpoint != "" {
+		metricExporter, err := otlpmetrichttp.New(ctx,
+			otlpmetrichttp.WithEndpointURL(metricEndpoint),
+			otlpmetrichttp.WithHeaders(metricHeaders),
+		)
+		if err != nil {
+			return nil, err
+		}
 
-	metricExporter, err := otlpmetrichttp.New(ctx,
-		otlpmetrichttp.WithEndpointURL(endpoint),
-		otlpmetrichttp.WithHeaders(headers),
-	)
-	if err != nil {
-		return nil, err
-	}
+		meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter)))
+		shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
+		otel.SetMeterProvider(meterProvider)
 
-	meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter)))
-	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
-	otel.SetMeterProvider(meterProvider)
-
-	err = runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second))
-	if err != nil {
-		log.Fatal(err)
+		err = runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	return

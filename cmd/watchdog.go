@@ -9,6 +9,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/http"
 	"github.com/andrewhowdencom/ruf/internal/poller"
+	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -54,7 +55,8 @@ func runWatchdog() error {
 	refreshInterval := viper.GetDuration("watchdog.refresh_interval")
 	p := poller.New(s, refreshInterval)
 
-	w := worker.New(store, slackClient, emailClient, p, refreshInterval)
+	sched := scheduler.New()
+	w := worker.New(store, slackClient, emailClient, p, sched, refreshInterval)
 	return w.Run()
 }
 

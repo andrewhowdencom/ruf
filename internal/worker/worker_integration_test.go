@@ -9,6 +9,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
+	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/viper"
@@ -78,7 +79,8 @@ _italic_
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "10m")
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	sched := scheduler.New()
+	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
 
 	err := w.RefreshSources()
 	assert.NoError(t, err)

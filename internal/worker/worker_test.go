@@ -10,6 +10,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
+	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/viper"
@@ -88,7 +89,8 @@ func TestWorker_RunTick(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "10m")
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	sched := scheduler.New()
+	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
 
 	err := w.RefreshSources()
 	assert.NoError(t, err)
@@ -148,7 +150,8 @@ func TestWorker_RunTickWithOldCall(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "24h")
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	sched := scheduler.New()
+	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
 
 	err := w.RefreshSources()
 	assert.NoError(t, err)
@@ -218,7 +221,8 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 
 	viper.Set("source.urls", []string{"mock://url"})
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	sched := scheduler.New()
+	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
 
 	err = w.RefreshSources()
 	assert.NoError(t, err)
@@ -286,7 +290,8 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "1h")
 
-	w := worker.New(store, slackClient, emailClient, p, 1*time.Minute)
+	sched := scheduler.New()
+	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
 
 	err := w.RefreshSources()
 	assert.NoError(t, err)
@@ -296,93 +301,4 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 	sentMessages, err := store.ListSentMessages()
 	assert.NoError(t, err)
 	assert.Len(t, sentMessages, 2)
-}
-
-func TestWorker_ExpandCallsWithRRule(t *testing.T) {
-	w := worker.New(nil, nil, nil, nil, 0)
-
-	sources := []*sourcer.Source{
-		{
-			Calls: []model.Call{
-				{
-					ID:      "1",
-					Content: "Hello, world!",
-					Triggers: []model.Trigger{
-						{
-							RRule: "FREQ=HOURLY;COUNT=5",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Set 'now' to a time before 09:00 to ensure the default start time is tested.
-	now, _ := time.Parse(time.RFC3339, "2025-01-01T08:00:00Z")
-	calls := w.ExpandCalls(sources, now)
-
-	assert.Len(t, calls, 5)
-}
-
-func TestWorker_ExpandCallsWithRRuleAndDStart(t *testing.T) {
-	w := worker.New(nil, nil, nil, nil, 0)
-
-	// Set 'now' to a time before 09:00 to ensure the default start time is tested.
-	now, _ := time.Parse(time.RFC3339, "2025-01-01T08:00:00Z")
-
-	testCases := []struct {
-		name          string
-		trigger       model.Trigger
-		expectedCount int
-	}{
-		{
-			name: "valid rrule and dstart",
-			trigger: model.Trigger{
-				RRule:  "FREQ=DAILY;COUNT=3",
-				DStart: "TZID=UTC:20250101T090000",
-			},
-			expectedCount: 1,
-		},
-		{
-			name: "dstart without rrule",
-			trigger: model.Trigger{
-				DStart: "TZID=UTC:20250102T090000",
-			},
-			expectedCount: 0,
-		},
-		{
-			name: "rrule without dstart",
-			trigger: model.Trigger{
-				RRule: "FREQ=HOURLY;COUNT=2",
-			},
-			expectedCount: 2,
-		},
-		{
-			name: "invalid dstart format",
-			trigger: model.Trigger{
-				RRule:  "FREQ=DAILY;COUNT=3",
-				DStart: "invalid-dstart",
-			},
-			expectedCount: 0,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			sources := []*sourcer.Source{
-				{
-					Calls: []model.Call{
-						{
-							ID:       "1",
-							Content:  "Hello, world!",
-							Triggers: []model.Trigger{tc.trigger},
-						},
-					},
-				},
-			}
-
-			calls := w.ExpandCalls(sources, now)
-			assert.Len(t, calls, tc.expectedCount)
-		})
-	}
 }

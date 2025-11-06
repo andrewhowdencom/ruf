@@ -8,6 +8,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
 	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/poller"
+	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -52,7 +53,8 @@ func doRun() error {
 	// but we pass a zero value to the worker constructor.
 	p := poller.New(s, 0)
 
-	w := worker.New(store, slackClient, emailClient, p, 0)
+	sched := scheduler.New()
+	w := worker.New(store, slackClient, emailClient, p, sched, 0)
 	return w.RunOnce()
 }
 

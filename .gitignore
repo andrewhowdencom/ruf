@@ -34,3 +34,6 @@ go.work.sum
 
 # Build artifacts
 dist/
+
+# Credentials
+gha_creds.json

@@ -285,8 +285,6 @@ gcloud projects add-iam-policy-binding andrewhowdencom \
   --role="roles/iam.serviceAccountUser"
 ```
 
-Replace `andrewhowdencom` with your Google Cloud project ID.
-
 #### 5.3. Create a Workload Identity Pool and Provider
 
 Next, create a Workload Identity Pool and a Provider to allow GitHub Actions to authenticate:
@@ -310,10 +308,8 @@ Allow the GitHub Actions service account to be impersonated by the Workload Iden
 ```bash
 gcloud iam service-accounts add-iam-policy-binding "github-actions-runner@andrewhowdencom.iam.gserviceaccount.com" \
   --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-actions-pool/subject/repo:andrewhowdencom/ruf:ref:refs/heads/main"
+  --member="principalSet://iam.googleapis.com/projects/andrewhowdencom/locations/global/workloadIdentityPools/github-actions-pool/subject/repo:andrewhowdencom/ruf:ref:refs/heads/main"
 ```
-
-Replace `andrewhowdencom` with your Google Cloud project ID, `<PROJECT_NUMBER>` with your Google Cloud project number, and `andrewhowdencom/ruf` with your GitHub organization and repository.
 
 #### 5.5. Create GitHub Secrets
 

@@ -44,6 +44,17 @@ func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, po
 	}
 }
 
+// RunOnce performs a single poll for calls and sends them.
+func (w *Worker) RunOnce() error {
+	if err := w.RefreshSources(); err != nil {
+		return fmt.Errorf("failed to refresh sources: %w", err)
+	}
+	if err := w.ProcessMessages(); err != nil {
+		return fmt.Errorf("failed to process messages: %w", err)
+	}
+	return nil
+}
+
 // Run starts the worker.
 func (w *Worker) Run() error {
 	slog.Info("starting worker")

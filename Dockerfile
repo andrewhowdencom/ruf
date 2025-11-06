@@ -15,4 +15,4 @@ FROM scratch
 
 COPY --from=builder /ruf /ruf
 
-ENTRYPOINT ["/ruf", "dispatcher"]
+ENTRYPOINT ["/ruf", "dispatcher", "run"]

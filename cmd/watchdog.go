@@ -14,20 +14,20 @@ import (
 	"github.com/spf13/viper"
 )
 
-// dispatcherCmd represents the dispatcher command
-var dispatcherCmd = &cobra.Command{
-	Use:   "dispatcher",
-	Short: "Run the dispatcher to send calls",
-	Long:  `Run the dispatcher to send calls.`,
+// watchdogCmd represents the watchdog command
+var watchdogCmd = &cobra.Command{
+	Use:   "watchdog",
+	Short: "Run the watchdog to send calls",
+	Long:  `Run the watchdog to send calls.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runDispatcher()
+		return runWatchdog()
 	},
 }
 
-func runDispatcher() error {
-	slog.Debug("running dispatcher")
+func runWatchdog() error {
+	slog.Debug("running watchdog")
 
-	go http.Start(viper.GetInt("dispatcher.port"))
+	go http.Start(viper.GetInt("watchdog.port"))
 
 	store, err := datastore.NewStore()
 	if err != nil {
@@ -51,7 +51,7 @@ func runDispatcher() error {
 		return fmt.Errorf("failed to build sourcer: %w", err)
 	}
 
-	refreshInterval := viper.GetDuration("dispatcher.refresh_interval")
+	refreshInterval := viper.GetDuration("watchdog.refresh_interval")
 	p := poller.New(s, refreshInterval)
 
 	w := worker.New(store, slackClient, emailClient, p, refreshInterval)
@@ -59,8 +59,8 @@ func runDispatcher() error {
 }
 
 func init() {
-	rootCmd.AddCommand(dispatcherCmd)
-	viper.SetDefault("dispatcher.refresh_interval", "1h")
-	viper.SetDefault("dispatcher.lookback_period", "24h")
-	viper.SetDefault("dispatcher.port", 8080)
+	rootCmd.AddCommand(watchdogCmd)
+	viper.SetDefault("watchdog.refresh_interval", "1h")
+	viper.SetDefault("watchdog.lookback_period", "24h")
+	viper.SetDefault("watchdog.port", 8080)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/andrewhowdencom/ruf/internal/kv"
@@ -50,6 +51,56 @@ func (s *Store) AddSentMessage(campaignID, callID string, sm *kv.SentMessage) er
 		return fmt.Errorf("%w: failed to add sent message: %w", kv.ErrDBOperationFailed, err)
 	}
 	return nil
+}
+
+func (s *Store) ReserveSlot(slot time.Time, callID string) (bool, error) {
+	ctx := context.Background()
+	key := slot.Format(time.RFC3339)
+	docRef := s.client.Collection("slots").Doc(key)
+
+	err := s.client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		doc, err := tx.Get(docRef)
+		if err != nil && status.Code(err) != codes.NotFound {
+			return err
+		}
+		if doc.Exists() {
+			return fmt.Errorf("slot already reserved")
+		}
+		return tx.Set(docRef, map[string]string{"callId": callID})
+	})
+
+	if err != nil {
+		if err.Error() == "slot already reserved" {
+			return false, nil
+		}
+		return false, fmt.Errorf("%w: failed to reserve slot: %w", kv.ErrDBOperationFailed, err)
+	}
+
+	return true, nil
+}
+
+func (s *Store) ClearAllSlots() error {
+	ctx := context.Background()
+	ref := s.client.Collection("slots")
+	for {
+		iter := ref.Limit(100).Documents(ctx)
+		numDeleted, err := iter.GetAll()
+		if err != nil {
+			return fmt.Errorf("%w: failed to iterate documents: %w", kv.ErrDBOperationFailed, err)
+		}
+		if len(numDeleted) == 0 {
+			return nil
+		}
+
+		batch := s.client.Batch()
+		for _, doc := range numDeleted {
+			batch.Delete(doc.Ref)
+		}
+		_, err = batch.Commit(ctx)
+		if err != nil {
+			return fmt.Errorf("%w: failed to commit batch delete: %w", kv.ErrDBOperationFailed, err)
+		}
+	}
 }
 
 // HasBeenSent checks if a message with the given sourceID and scheduledAt time has a 'sent' or 'deleted' status.

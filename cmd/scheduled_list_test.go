@@ -11,6 +11,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/andrewhowdencom/ruf/internal/datastore"
 )
 
 // mockSourcer is a mock implementation of the sourcer.Sourcer interface for testing.
@@ -54,7 +55,8 @@ func TestDoScheduledList(t *testing.T) {
 	}
 
 	s := &mockSourcer{source: mockSource}
-	sched := scheduler.New()
+	store := datastore.NewMockStore()
+	sched := scheduler.New(store)
 	var buf bytes.Buffer
 
 	err := doScheduledList(s, sched, &buf, "", "")

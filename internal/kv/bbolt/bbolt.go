@@ -4,13 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/ruf/internal/kv"
 	"go.etcd.io/bbolt"
 )
 
-var sentMessagesBucket = []byte("sent_messages")
+var (
+	sentMessagesBucket = []byte("sent_messages")
+	slotsBucket        = []byte("slots")
+)
 
 // Store manages the persistence of calls.
 type Store struct {
@@ -39,9 +43,11 @@ func newStore(dbPath string) (kv.Storer, error) {
 	}
 
 	err = db.Update(func(tx *bbolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(sentMessagesBucket)
-		if err != nil {
-			return fmt.Errorf("%w: failed to create bucket: %w", kv.ErrDBOperationFailed, err)
+		if _, err := tx.CreateBucketIfNotExists(sentMessagesBucket); err != nil {
+			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, sentMessagesBucket, err)
+		}
+		if _, err := tx.CreateBucketIfNotExists(slotsBucket); err != nil {
+			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, slotsBucket, err)
 		}
 		return nil
 	})
@@ -178,6 +184,39 @@ func (s *Store) DeleteSentMessage(id string) error {
 
 		if err := b.Put([]byte(id), buf); err != nil {
 			return fmt.Errorf("%w: failed to put sent message: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
+}
+
+func (s *Store) ReserveSlot(slot time.Time, callID string) (bool, error) {
+	var reserved bool
+	err := s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(slotsBucket)
+		key := []byte(slot.Format(time.RFC3339))
+		if v := b.Get(key); v != nil {
+			return nil // Slot is already taken
+		}
+
+		if err := b.Put(key, []byte(callID)); err != nil {
+			return fmt.Errorf("%w: failed to reserve slot: %w", kv.ErrDBOperationFailed, err)
+		}
+		reserved = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return reserved, nil
+}
+
+func (s *Store) ClearAllSlots() error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		if err := tx.DeleteBucket(slotsBucket); err != nil {
+			return fmt.Errorf("%w: failed to delete bucket '%s': %w", kv.ErrDBOperationFailed, slotsBucket, err)
+		}
+		if _, err := tx.CreateBucket(slotsBucket); err != nil {
+			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, slotsBucket, err)
 		}
 		return nil
 	})

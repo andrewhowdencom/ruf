@@ -44,4 +44,8 @@ type Storer interface {
 	GetSentMessage(id string) (*SentMessage, error)
 	DeleteSentMessage(id string) error
 	Close() error
+
+	// Slot management
+	ReserveSlot(slot time.Time, callID string) (bool, error)
+	ClearAllSlots() error
 }

@@ -58,6 +58,17 @@ func init() {
 	viper.SetDefault("otel.exporter.traces.headers", map[string]string{})
 	viper.SetDefault("otel.exporter.metrics.endpoint", "")
 	viper.SetDefault("otel.exporter.metrics.headers", map[string]string{})
+
+	viper.SetDefault("slots.timezone", "UTC")
+	viper.SetDefault("slots.days", map[string][]string{
+		"monday":    {"09:00", "14:00"},
+		"tuesday":   {"09:00", "14:00"},
+		"wednesday": {"09:00", "14:00"},
+		"thursday":  {"09:00", "14:00"},
+		"friday":    {"09:00", "14:00"},
+		"saturday":  {"09:00", "14:00"},
+		"sunday":    {"09:00", "14:00"},
+	})
 }
 
 // getXDGConfigPath returns the path to the configuration directory according to the XDG Base Directory Specification.

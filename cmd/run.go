@@ -53,7 +53,7 @@ func doRun() error {
 	// but we pass a zero value to the worker constructor.
 	p := poller.New(s, 0)
 
-	sched := scheduler.New()
+	sched := scheduler.New(store)
 	w := worker.New(store, slackClient, emailClient, p, sched, 0)
 	return w.RunOnce()
 }

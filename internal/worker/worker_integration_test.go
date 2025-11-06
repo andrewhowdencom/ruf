@@ -79,7 +79,7 @@ _italic_
 	viper.Set("source.urls", []string{"mock://url"})
 	viper.Set("worker.lookback_period", "10m")
 
-	sched := scheduler.New()
+	sched := scheduler.New(store)
 	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
 
 	err := w.RefreshSources()

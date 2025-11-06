@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/kv"
 )
@@ -90,5 +91,13 @@ func (s *MockStore) DeleteSentMessage(id string) error {
 
 // Close is a no-op for the mock store.
 func (s *MockStore) Close() error {
+	return nil
+}
+
+func (m *MockStore) ReserveSlot(slot time.Time, callID string) (bool, error) {
+	return true, nil
+}
+
+func (m *MockStore) ClearAllSlots() error {
 	return nil
 }

@@ -20,6 +20,30 @@ The application is configured using a YAML file located at `$XDG_CONFIG_HOME/ruf
 
 An example, well-documented configuration file can be found at [`examples/config.yaml`](./examples/config.yaml).
 
+### Time Slot Scheduling
+
+This application supports a time slot scheduling feature that allows you to define specific time slots for your calls. If you enable this feature, any recurring calls, or calls scheduled at midnight, will be scheduled in the next available time slot.
+
+To configure the time slots, add a `slots` section to your `config.yaml` file. The following options are available:
+
+- `timezone`: The timezone to use for the time slots. It should be a valid IANA Time Zone database name (e.g. "Europe/Berlin").
+- `days`: A map of days of the week to a list of time slots. The time slots should be in the format "HH:MM".
+
+#### Example
+
+```yaml
+slots:
+  timezone: "Europe/Berlin"
+  days:
+    monday:
+      - "09:00"
+      - "14:00"
+    tuesday:
+      - "10:00"
+```
+
+If you do not configure any time slots, the application will default to "09:00" and "14:00" for every day of the week, in UTC.
+
 ### Git Sources
 
 The application supports fetching calls from Git repositories. The URL format is:
@@ -50,6 +74,8 @@ Each call must have a list of `triggers` that determine when the call should be 
 - `cron`: A cron expression for recurring calls.
 - `rrule`: An iCal `rrule` string for more complex recurring calls.
 - `sequence` and `delta`: For event-driven call sequences.
+
+**Note:** Recurring calls (cron and rrule) and calls scheduled at midnight will be scheduled using the time slot scheduling feature, if it is configured.
 
 ### Content Formatting
 

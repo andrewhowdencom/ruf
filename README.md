@@ -209,3 +209,124 @@ To install it, copy the file to `~/.config/systemd/user/`:
 mkdir -p ~/.config/systemd/user
 cp examples/ruf.service ~/.config/systemd/user/
 ```
+
+## Deploying to Google Cloud Run
+
+This application can be deployed to Google Cloud Run. The following instructions assume you have the `gcloud` CLI installed and configured.
+
+### 1. Enable Required Services
+
+First, you'll need to enable the Cloud Run, Artifact Registry, and Cloud Build services:
+
+```bash
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+```
+
+### 2. Create an Artifact Registry Repository
+
+Next, create an Artifact Registry repository to store the Docker images:
+
+```bash
+gcloud artifacts repositories create ruf \
+  --repository-format=docker \
+  --location=europe-west3
+```
+
+### 3. Create a Service Account
+
+Create a service account for the Cloud Run service to use:
+
+```bash
+gcloud iam service-accounts create ruf-runner
+```
+
+### 4. Grant Permissions
+
+Grant the service account the necessary permissions to access Firestore and pull images:
+
+```bash
+gcloud projects add-iam-policy-binding andrewhowdencom \
+  --member="serviceAccount:ruf-runner@andrewhowdencom.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+
+gcloud projects add-iam-policy-binding andrewhowdencom \
+  --member="serviceAccount:ruf-runner@andrewhowdencom.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.reader"
+```
+
+### 5. Set up Continuous Deployment with GitHub Actions
+
+This repository includes a GitHub Actions workflow to automatically deploy the application to Cloud Run. To use it, you'll need to set up Workload Identity Federation to allow GitHub Actions to securely authenticate with Google Cloud.
+
+#### 5.1. Create a Service Account for GitHub Actions
+
+First, create a service account that GitHub Actions will use to deploy the application:
+
+```bash
+gcloud iam service-accounts create github-actions-runner \
+  --display-name="GitHub Actions Runner"
+```
+
+#### 5.2. Grant Permissions to the Service Account
+
+Grant the service account the necessary permissions to deploy to Cloud Run and push to Artifact Registry:
+
+```bash
+gcloud projects add-iam-policy-binding andrewhowdencom \
+  --member="serviceAccount:github-actions-runner@andrewhowdencom.iam.gserviceaccount.com" \
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding andrewhowdencom \
+  --member="serviceAccount:github-actions-runner@andrewhowdencom.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+
+gcloud projects add-iam-policy-binding andrewhowdencom \
+  --member="serviceAccount:github-actions-runner@andrewhowdencom.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountUser"
+```
+
+Replace `andrewhowdencom` with your Google Cloud project ID.
+
+#### 5.3. Create a Workload Identity Pool and Provider
+
+Next, create a Workload Identity Pool and a Provider to allow GitHub Actions to authenticate:
+
+```bash
+gcloud iam workload-identity-pools create github-actions-pool \
+  --location="global" \
+  --display-name="GitHub Actions Pool"
+
+gcloud iam workload-identity-pools providers create-oidc github-actions-provider \
+  --workload-identity-pool="github-actions-pool" \
+  --location="global" \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository"
+```
+
+#### 5.4. Allow Authentications from the Provider
+
+Allow the GitHub Actions service account to be impersonated by the Workload Identity Provider:
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding "github-actions-runner@andrewhowdencom.iam.gserviceaccount.com" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-actions-pool/subject/repo:andrewhowdencom/ruf:ref:refs/heads/main"
+```
+
+Replace `andrewhowdencom` with your Google Cloud project ID, `<PROJECT_NUMBER>` with your Google Cloud project number, and `andrewhowdencom/ruf` with your GitHub organization and repository.
+
+#### 5.5. Create GitHub Secrets
+
+Finally, create the following secrets in your GitHub repository:
+
+- `GCP_PROJECT_ID`: Your Google Cloud project ID.
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`: The full identifier of the Workload Identity Provider. You can get this by running the following command:
+  ```bash
+  gcloud iam workload-identity-pools providers describe github-actions-provider \
+    --workload-identity-pool="github-actions-pool" \
+    --location="global" \
+    --format="value(name)"
+  ```
+- `GCP_SERVICE_ACCOUNT_EMAIL`: The email address of the `github-actions-runner` service account.
+
+Once you've created these secrets, the GitHub Actions workflow will automatically build and deploy the application to Cloud Run when changes are pushed to the `main` branch.

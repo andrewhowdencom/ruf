@@ -317,8 +317,8 @@ func TestWorker_ExpandCallsWithRRule(t *testing.T) {
 		},
 	}
 
-	// Set a specific time for the test
-	now, _ := time.Parse(time.RFC3339, "2025-01-01T12:00:00Z")
+	// Set 'now' to a time before 09:00 to ensure the default start time is tested.
+	now, _ := time.Parse(time.RFC3339, "2025-01-01T08:00:00Z")
 	calls := w.ExpandCalls(sources, now)
 
 	assert.Len(t, calls, 5)
@@ -327,8 +327,8 @@ func TestWorker_ExpandCallsWithRRule(t *testing.T) {
 func TestWorker_ExpandCallsWithRRuleAndDStart(t *testing.T) {
 	w := worker.New(nil, nil, nil, nil, 0)
 
-	// Set a specific time for the test
-	now, _ := time.Parse(time.RFC3339, "2025-01-01T12:00:00Z")
+	// Set 'now' to a time before 09:00 to ensure the default start time is tested.
+	now, _ := time.Parse(time.RFC3339, "2025-01-01T08:00:00Z")
 
 	testCases := []struct {
 		name          string
@@ -339,7 +339,7 @@ func TestWorker_ExpandCallsWithRRuleAndDStart(t *testing.T) {
 			name: "valid rrule and dstart",
 			trigger: model.Trigger{
 				RRule:  "FREQ=DAILY;COUNT=3",
-				DStart: "TZID=UTC:20250102T090000",
+				DStart: "TZID=UTC:20250101T090000",
 			},
 			expectedCount: 1,
 		},

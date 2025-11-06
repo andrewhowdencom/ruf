@@ -133,6 +133,7 @@ func (w *Worker) ProcessMessages() error {
 // ExpandCalls takes a list of sources and expands the call definitions within them
 // into a flat list of concrete, scheduled calls based on their triggers.
 func (w *Worker) ExpandCalls(sources []*sourcer.Source, now time.Time) []*model.Call {
+	now = now.UTC() // Ensure 'now' is in UTC for consistent calculations.
 	var expandedCalls []*model.Call
 
 	for _, source := range sources {
@@ -193,8 +194,13 @@ func (w *Worker) ExpandCalls(sources []*sourcer.Source, now time.Time) []*model.
 							slog.Error("failed to parse dstart time", "error", err, "dstart", trigger.DStart)
 							continue
 						}
-						rOption.Dtstart = dtstart
+						rOption.Dtstart = dtstart.UTC()
+					} else if !strings.Contains(trigger.RRule, "BYHOUR") {
+						// If no DStart and no BYHOUR, default the time to 09:00 UTC of the current day.
+						year, month, day := now.Date()
+						rOption.Dtstart = time.Date(year, month, day, 9, 0, 0, 0, time.UTC)
 					} else {
+						// If no DStart but BYHOUR is present, or for any other case, use 'now'.
 						rOption.Dtstart = now
 					}
 
@@ -204,9 +210,10 @@ func (w *Worker) ExpandCalls(sources []*sourcer.Source, now time.Time) []*model.
 						continue
 					}
 
+					// Use UTC for the 'between' calculation to ensure occurrences are consistent.
 					for _, occurrence := range rule.Between(now, now.Add(24*time.Hour), true) {
 						newCall := w.createCallFromDefinition(callDef)
-						newCall.ScheduledAt = occurrence
+						newCall.ScheduledAt = occurrence.UTC() // Ensure scheduled time is stored as UTC.
 						newCall.ID = fmt.Sprintf("%s:rrule:%s:%s", callDef.ID, trigger.RRule, occurrence.Format(time.RFC3339))
 						expandedCalls = append(expandedCalls, newCall)
 					}
@@ -257,7 +264,7 @@ func (w *Worker) createCallFromDefinition(def model.Call) *model.Call {
 
 func (w *Worker) processCall(call *model.Call) error {
 	slog.Debug("processing call", "call_id", call.ID)
-	now := time.Now()
+	now := time.Now().UTC()
 	effectiveScheduledAt := call.ScheduledAt
 
 	// Don't process calls scheduled for the future.

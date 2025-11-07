@@ -56,7 +56,7 @@ func runWatchdog() error {
 	p := poller.New(s, refreshInterval)
 
 	sched := scheduler.New(store)
-	w, err := worker.New(store, slackClient, emailClient, p, sched, refreshInterval)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, refreshInterval, viper.GetBool("dispatcher.dry_run"))
 	if err != nil {
 		return fmt.Errorf("failed to create worker: %w", err)
 	}

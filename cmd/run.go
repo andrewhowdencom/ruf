@@ -54,7 +54,7 @@ func doRun() error {
 	p := poller.New(s, 0)
 
 	sched := scheduler.New(store)
-	w, err := worker.New(store, slackClient, emailClient, p, sched, 0)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 0, viper.GetBool("dispatcher.dry_run"))
 	if err != nil {
 		return fmt.Errorf("failed to create worker: %w", err)
 	}

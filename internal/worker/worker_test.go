@@ -92,7 +92,7 @@ func TestWorker_RunTick(t *testing.T) {
 	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute, false)
 	assert.NoError(t, err)
 
 	err = w.RefreshSources()
@@ -155,7 +155,7 @@ func TestWorker_RunTickWithOldCall(t *testing.T) {
 	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute, false)
 	assert.NoError(t, err)
 
 	err = w.RefreshSources()
@@ -227,7 +227,7 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 
 	sched := scheduler.New(store)
-	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute, false)
 	assert.NoError(t, err)
 
 	err = w.RefreshSources()
@@ -299,7 +299,7 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute, false)
 	assert.NoError(t, err)
 
 	err = w.RefreshSources()

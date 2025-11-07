@@ -21,17 +21,6 @@ func TestWorker_RunTick_MarkdownFormatting(t *testing.T) {
 	slackClient := slack.NewMockClient()
 	emailClient := email.NewMockClient()
 
-	var capturedSlackContent string
-	slackClient.PostMessageFunc = func(channel, author, subject, text string, campaign model.Campaign) (string, string, error) {
-		capturedSlackContent = text
-		return "C1234567890", "1234567890.123456", nil
-	}
-
-	var capturedEmailContent string
-	emailClient.SendFunc = func(to []string, author, subject, body string, campaign model.Campaign) error {
-		capturedEmailContent = body
-		return nil
-	}
 
 	markdownContent := `# Title
 
@@ -91,10 +80,12 @@ _italic_
 	assert.NoError(t, err)
 
 	// Assertions for Slack mrkdwn
+	assert.Equal(t, 1, len(slackClient.PostMessageCalls()))
 	expectedSlackMrkdwn := "*Title*\n\n\n*bold*\n\n\n_italic_\n\n\n<http://example.com|link>\n\n\n• one\n• two\n• three"
-	assert.Equal(t, expectedSlackMrkdwn, capturedSlackContent)
+	assert.Equal(t, expectedSlackMrkdwn, slackClient.PostMessageCalls()[0].Text)
 
 	// Assertions for Email HTML
+	assert.Equal(t, 1, len(emailClient.SendCalls()))
 	expectedEmailHTML := `<h1 id="title">Title</h1>
 
 <p><strong>bold</strong></p>
@@ -109,5 +100,5 @@ _italic_
 <li>three</li>
 </ul>
 `
-	assert.Equal(t, expectedEmailHTML, capturedEmailContent)
+	assert.Equal(t, expectedEmailHTML, emailClient.SendCalls()[0].Body)
 }

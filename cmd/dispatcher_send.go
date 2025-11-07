@@ -1,16 +1,22 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
-	"text/template"
+	"time"
 
-	"github.com/Masterminds/sprig/v3"
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
+	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/model"
+	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+)
+
+var (
+	datastoreNewStore = datastore.NewStore
+	slackNewClient    = slack.NewClient
+	emailNewClient    = email.NewClient
 )
 
 // sendCmd represents the send command
@@ -56,63 +62,35 @@ var sendCmd = &cobra.Command{
 			return fmt.Errorf("call with id '%s' not found", id)
 		}
 
-		// Render content
-		contentTmpl, err := template.New("content").Funcs(sprig.TxtFuncMap()).Parse(selectedCall.Content)
+		// Replace the call's destinations with the one specified on the command line
+		selectedCall.Destinations = []model.Destination{
+			{
+				Type: destType,
+				To:   []string{dest},
+			},
+		}
+		selectedCall.ScheduledAt = time.Now()
+
+		store, err := datastoreNewStore()
 		if err != nil {
-			return fmt.Errorf("failed to parse content template: %w", err)
+			return fmt.Errorf("failed to create a new datastore: %w", err)
 		}
 
-		var renderedContent bytes.Buffer
-		if err := contentTmpl.Execute(&renderedContent, nil); err != nil {
-			return fmt.Errorf("failed to execute content template: %w", err)
+		slackToken := viper.GetString("slack.app.token")
+		slackClient := slackNewClient(slackToken)
+		emailClient := emailNewClient(
+			viper.GetString("email.host"),
+			viper.GetInt("email.port"),
+			viper.GetString("email.username"),
+			viper.GetString("email.password"),
+			viper.GetString("email.from"),
+		)
+
+		if err := worker.ProcessCall(selectedCall, store, slackClient, emailClient, viper.GetBool("dispatcher.dry_run")); err != nil {
+			return fmt.Errorf("failed to process call: %w", err)
 		}
 
-		// Render subject if it exists
-		renderedSubject := selectedCall.Subject
-		if selectedCall.Subject != "" {
-			subjectTmpl, err := template.New("subject").Funcs(sprig.TxtFuncMap()).Parse(selectedCall.Subject)
-			if err != nil {
-				return fmt.Errorf("failed to parse subject template: %w", err)
-			}
-			var subjectBuffer bytes.Buffer
-			if err := subjectTmpl.Execute(&subjectBuffer, nil); err != nil {
-				return fmt.Errorf("failed to execute subject template: %w", err)
-			}
-			renderedSubject = subjectBuffer.String()
-		}
-
-		if viper.GetBool("dispatcher.dry_run") {
-			fmt.Printf("dry run: would send message to %s (%s)\n", dest, destType)
-			fmt.Printf("Subject: %s\n", renderedSubject)
-			fmt.Printf("Content: %s\n", renderedContent.String())
-			return nil
-		}
-
-		switch destType {
-		case "slack":
-			slackToken := viper.GetString("slack.app.token")
-			slackClient := slack.NewClient(slackToken)
-			_, _, err := slackClient.PostMessage(dest, selectedCall.Author, renderedSubject, renderedContent.String(), selectedCall.Campaign)
-			if err != nil {
-				return fmt.Errorf("failed to send slack message: %w", err)
-			}
-		case "email":
-			emailClient := email.NewClient(
-				viper.GetString("email.host"),
-				viper.GetInt("email.port"),
-				viper.GetString("email.username"),
-				viper.GetString("email.password"),
-				viper.GetString("email.from"),
-			)
-			err := emailClient.Send([]string{dest}, selectedCall.Author, renderedSubject, renderedContent.String(), selectedCall.Campaign)
-			if err != nil {
-				return fmt.Errorf("failed to send email: %w", err)
-			}
-		default:
-			return fmt.Errorf("unknown destination type: %s", destType)
-		}
-
-		fmt.Printf("Message sent successfully to %s\n", dest)
+		fmt.Fprintf(cmd.OutOrStdout(), "Message sent successfully to %s\n", dest)
 		return nil
 	},
 }

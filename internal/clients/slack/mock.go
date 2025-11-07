@@ -9,8 +9,13 @@ type MockClient struct {
 	DeleteMessageFunc func(channel, timestamp string) error
 	GetChannelIDFunc  func(channelName string) (string, error)
 
-	PostMessageCount  int
-	NotifyAuthorCount int
+	postMessageCalls []struct {
+		Destination string
+		Author      string
+		Subject     string
+		Text        string
+		Campaign    model.Campaign
+	}
 }
 
 // NewMockClient creates a new MockClient.
@@ -32,14 +37,19 @@ func NewMockClient() *MockClient {
 }
 
 // PostMessage calls the PostMessageFunc.
-func (m *MockClient) PostMessage(channel, author, subject, text string, campaign model.Campaign) (string, string, error) {
-	m.PostMessageCount++
-	return m.PostMessageFunc(channel, author, subject, text, campaign)
+func (m *MockClient) PostMessage(destination, author, subject, text string, campaign model.Campaign) (string, string, error) {
+	m.postMessageCalls = append(m.postMessageCalls, struct {
+		Destination string
+		Author      string
+		Subject     string
+		Text        string
+		Campaign    model.Campaign
+	}{destination, author, subject, text, campaign})
+	return m.PostMessageFunc(destination, author, subject, text, campaign)
 }
 
 // NotifyAuthor calls the NotifyAuthorFunc.
 func (m *MockClient) NotifyAuthor(authorEmail, channelId, messageTimestamp, channelName string) error {
-	m.NotifyAuthorCount++
 	return m.NotifyAuthorFunc(authorEmail, channelId, messageTimestamp, channelName)
 }
 
@@ -51,4 +61,15 @@ func (m *MockClient) DeleteMessage(channel, timestamp string) error {
 // GetChannelID calls the GetChannelIDFunc.
 func (m *MockClient) GetChannelID(channelName string) (string, error) {
 	return m.GetChannelIDFunc(channelName)
+}
+
+// PostMessageCalls returns the recorded calls to PostMessage.
+func (m *MockClient) PostMessageCalls() []struct {
+	Destination string
+	Author      string
+	Subject     string
+	Text        string
+	Campaign    model.Campaign
+} {
+	return m.postMessageCalls
 }

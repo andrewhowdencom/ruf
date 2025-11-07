@@ -12,9 +12,7 @@ import (
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
 	"github.com/andrewhowdencom/ruf/internal/kv"
-	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/poller"
-	"github.com/andrewhowdencom/ruf/internal/processor"
 	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/spf13/viper"
@@ -137,170 +135,36 @@ func (w *Worker) ProcessMessages() error {
 	calls := w.scheduler.Expand(sources, time.Now(), w.calculationBefore, w.calculationAfter)
 
 	for _, call := range calls {
-		if err := w.processCall(call); err != nil {
+		now := time.Now().UTC()
+		effectiveScheduledAt := call.ScheduledAt
+
+		// Don't process calls scheduled for the future.
+		if now.Before(effectiveScheduledAt) {
+			slog.Debug("skipping call scheduled for the future", "call_id", call.ID, "effective_scheduled_at", effectiveScheduledAt)
+			continue
+		}
+
+		missedLookback := viper.GetDuration("worker.missed_lookback")
+		if effectiveScheduledAt.Before(now.Add(-missedLookback)) {
+			slog.Warn("skipping call outside lookback period", "call_id", call.ID, "scheduled_at", effectiveScheduledAt)
+			dest := call.Destinations[0]
+			to := dest.To[0]
+			err := w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
+				SourceID:     call.ID,
+				ScheduledAt:  effectiveScheduledAt,
+				Status:       kv.StatusFailed,
+				Type:         dest.Type,
+				Destination:  to,
+				CampaignName: call.Campaign.Name,
+			})
+			if err != nil {
+				slog.Error("failed to add sent message for missed call", "call_id", call.ID, "error", err)
+			}
+			continue
+		}
+
+		if err := ProcessCall(call, w.store, w.slackClient, w.emailClient, w.dryRun); err != nil {
 			slog.Error("error processing call", "call_id", call.ID, "error", err)
-		}
-	}
-
-	return nil
-}
-
-func (w *Worker) processCall(call *model.Call) error {
-	slog.Debug("processing call", "call_id", call.ID)
-	now := time.Now().UTC()
-	effectiveScheduledAt := call.ScheduledAt
-
-	// Don't process calls scheduled for the future.
-	if now.Before(effectiveScheduledAt) {
-		slog.Debug("skipping call scheduled for the future", "call_id", call.ID, "effective_scheduled_at", effectiveScheduledAt)
-		return nil
-	}
-
-	missedLookback := viper.GetDuration("worker.missed_lookback")
-	if effectiveScheduledAt.Before(now.Add(-missedLookback)) {
-		slog.Warn("skipping call outside lookback period", "call_id", call.ID, "scheduled_at", effectiveScheduledAt)
-		dest := call.Destinations[0]
-		to := dest.To[0]
-		err := w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
-			SourceID:     call.ID,
-			ScheduledAt:  effectiveScheduledAt,
-			Status:       kv.StatusFailed,
-			Type:         dest.Type,
-			Destination:  to,
-			CampaignName: call.Campaign.Name,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to add sent message: %w", err)
-		}
-		return nil
-	}
-
-	dest := call.Destinations[0]
-	if len(dest.To) == 0 {
-		slog.Warn("skipping call with no address in `to`", "call_id", call.ID)
-		return nil
-	}
-
-	for _, to := range dest.To {
-		hasBeenSent, err := w.store.HasBeenSent(call.Campaign.ID, call.ID, dest.Type, to)
-		if err != nil {
-			return fmt.Errorf("failed to check if call has been sent: %w", err)
-		}
-		if hasBeenSent {
-			slog.Debug("skipping call that has already been sent", "call_id", call.ID, "destination", to, "type", dest.Type)
-			continue
-		}
-
-		// Define the processor stacks for each destination type
-		var subjectProcessor, contentProcessor processor.ProcessorStack
-		switch dest.Type {
-		case "slack":
-			subjectProcessor = processor.ProcessorStack{
-				processor.NewTemplateProcessor(),
-			}
-			contentProcessor = processor.ProcessorStack{
-				processor.NewTemplateProcessor(),
-				processor.NewMarkdownToSlackProcessor(),
-			}
-		case "email":
-			subjectProcessor = processor.ProcessorStack{
-				processor.NewTemplateProcessor(),
-			}
-			contentProcessor = processor.ProcessorStack{
-				processor.NewTemplateProcessor(),
-				processor.NewMarkdownToHTMLProcessor(),
-			}
-		default:
-			return fmt.Errorf("unsupported destination type: %s", dest.Type)
-		}
-
-		subject, err := subjectProcessor.Process(call.Subject, nil)
-		if err != nil {
-			slog.Error("failed to process subject", "error", err)
-			w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
-				SourceID:     call.ID,
-				ScheduledAt:  effectiveScheduledAt,
-				Status:       kv.StatusFailed,
-				Type:         dest.Type,
-				Destination:  to,
-				CampaignName: call.Campaign.Name,
-			})
-			continue
-		}
-		content, err := contentProcessor.Process(call.Content, nil)
-		if err != nil {
-			slog.Error("failed to process content", "error", err)
-			w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
-				SourceID:     call.ID,
-				ScheduledAt:  effectiveScheduledAt,
-				Status:       kv.StatusFailed,
-				Type:         dest.Type,
-				Destination:  to,
-				CampaignName: call.Campaign.Name,
-			})
-			continue
-		}
-
-		if w.dryRun {
-			slog.Info("dry run: would send message", "call_id", call.ID, "campaign", call.Campaign.Name, "subject", subject, "destination", to, "type", dest.Type, "scheduled_at", effectiveScheduledAt)
-			continue
-		}
-
-		switch dest.Type {
-		case "slack":
-			slog.Info("sending slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
-			channelID, timestamp, err := w.slackClient.PostMessage(to, call.Author, subject, content, call.Campaign)
-			sentMessage := &kv.SentMessage{
-				SourceID:     call.ID,
-				ScheduledAt:  effectiveScheduledAt,
-				Timestamp:    timestamp,
-				Destination:  to,
-				Type:         dest.Type,
-				CampaignName: call.Campaign.Name,
-			}
-
-			if err != nil {
-				sentMessage.Status = kv.StatusFailed
-				slog.Error("failed to send slack message", "error", err)
-			} else {
-				sentMessage.Status = kv.StatusSent
-				slog.Info("sent slack message", "call_id", call.ID, "destination", to, "scheduled_at", effectiveScheduledAt)
-
-				if call.Author != "" {
-					err := w.slackClient.NotifyAuthor(call.Author, channelID, timestamp, to)
-					if err != nil {
-						slog.Error("failed to send author notification", "error", err)
-					}
-				}
-			}
-
-			if err := w.store.AddSentMessage(call.Campaign.ID, call.ID, sentMessage); err != nil {
-				return err
-			}
-		case "email":
-			slog.Info("sending email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
-			err := w.emailClient.Send([]string{to}, call.Author, subject, content, call.Campaign)
-			sentMessage := &kv.SentMessage{
-				SourceID:     call.ID,
-				ScheduledAt:  effectiveScheduledAt,
-				Destination:  to,
-				Type:         dest.Type,
-				CampaignName: call.Campaign.Name,
-			}
-
-			if err != nil {
-				sentMessage.Status = kv.StatusFailed
-				slog.Error("failed to send email", "error", err)
-			} else {
-				sentMessage.Status = kv.StatusSent
-				slog.Info("sent email", "call_id", call.ID, "recipient", to, "scheduled_at", effectiveScheduledAt)
-			}
-
-			if err := w.store.AddSentMessage(call.Campaign.ID, call.ID, sentMessage); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unsupported destination type: %s", dest.Type)
 		}
 	}
 

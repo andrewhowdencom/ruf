@@ -98,40 +98,7 @@ The `content` of a call can be written in Markdown. This will be automatically c
 
 ### Example
 
-```yaml
-campaign:
-  id: "my-campaign"
-  name: "My Campaign"
-calls:
-- id: "unique-id-1"
-  author: "author@example.com"
-  subject: "Hello!"
-  content: |
-    # Hello, world!
-    This is a call with **Markdown** content.
-    - one
-    - two
-  destinations:
-    - type: "slack"
-      to:
-        - "#general" # a public channel
-        - "user@example.com" # a direct message to a user, found by email
-    - type: "email"
-      to:
-        - "user@example.com"
-  triggers:
-    - scheduled_at: "2025-01-01T12:00:00Z"
-- id: "unique-id-2"
-  subject: "Recurring hello!"
-  content: "Hello, recurring world!"
-  destinations:
-    - type: "slack"
-      to:
-        - "#general"
-  triggers:
-    - cron: "0 * * * *"
-    - rrule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
-```
+For a detailed example of a calls file, see [`examples/calls.yaml`](./examples/calls.yaml).
 
 ## Event-Driven Call Sequences
 
@@ -154,43 +121,6 @@ When a `Call` includes an `author` email address, `ruf` will attempt to send the
   If the configured SMTP server rejects this (due to security policies like SPF/DKIM), it will fall back to sending
   from the default configured sender address, but will set the `Reply-To` header to the author's email.
 
-### Example
-
-```yaml
-campaign:
-  id: "product-launch"
-  name: "Product Launch"
-calls:
-- id: "launch-announcement-1"
-  subject: "We're live!"
-  content: "Our new product is now live! Check it out at..."
-  destinations:
-    - type: "slack"
-      to:
-        - "#general"
-  triggers:
-    - sequence: "product-launch-sequence"
-      delta: "5m"
-- id: "launch-announcement-2"
-  subject: "Don't miss out!"
-  content: "In case you missed it, our new product is now live! Check it out at..."
-  destinations:
-    - type: "slack"
-      to:
-        - "#marketing"
-  triggers:
-    - sequence: "product-launch-sequence"
-      delta: "1h"
-events:
-- sequence: "product-launch-sequence"
-  start_time: "2025-01-01T12:00:00Z"
-  destinations:
-    - type: "email"
-      to:
-        - "all-hands@example.com"
-```
-
-In this example, the two calls with the `sequence` "product-launch-sequence" will be triggered by the event with the same `sequence`. The first call will be sent 5 minutes after the event's `start_time`, and the second call will be sent 1 hour after. The destinations from the calls and the event will be merged, so the first call will be sent to the "#general" Slack channel and to "all-hands@example.com", and the second call will be sent to the "#marketing" Slack channel and to "all-hands@example.com".
 
 ## Migrating from the Old Format
 

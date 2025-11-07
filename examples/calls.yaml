@@ -1,0 +1,88 @@
+# This file provides examples for configuring ruf calls, campaigns, and events.
+
+# A campaign is an optional way to group related calls.
+# If a `campaign` block is not present, the campaign ID and name are
+# derived from the source filename.
+campaign:
+  id: "q4-product-updates"
+  name: "Q4 Product Updates"
+  icon_url: "https://example.com/images/icon.png" # Optional icon for Slack.
+
+# `calls` is a list of messages to be sent.
+calls:
+  # --- Example 1: A simple, one-off scheduled call. ---
+  - id: "new-feature-announcement"
+    author: "product-team@example.com" # Optional: Impersonates this user in Slack/Email.
+    subject: "New Feature: Advanced Reporting"
+    content: |
+      # Announcing Advanced Reporting!
+
+      We're excited to launch our new Advanced Reporting feature.
+      - Deeper insights
+      - Customizable dashboards
+
+      Learn more on our [blog](https://example.com/blog-post).
+    destinations:
+      - type: "slack"
+        to:
+          - "#general"          # Send to a public channel.
+          - "ceo@example.com"   # Send a DM to a user (resolved via email).
+      - type: "email"
+        to:
+          - "all-staff@example.com"
+    triggers:
+      # `scheduled_at` sends the call at a specific time.
+      - scheduled_at: "2025-10-31T10:00:00Z"
+
+  # --- Example 2: A recurring call using cron and rrule. ---
+  - id: "weekly-dev-update"
+    subject: "Weekly Development Update"
+    content: "Please find the weekly development update attached."
+    destinations:
+      - type: "slack"
+        to: ["#engineering"]
+    triggers:
+      # `cron` uses standard cron syntax for recurring schedules.
+      # This example runs at 5 PM UTC every Friday.
+      - cron: "0 17 * * 5"
+      # `rrule` uses iCal RRULE strings for more complex schedules.
+      # `dstart` is the start date for the rule.
+      # This example runs every Mon, Wed, Fri at 9:00 AM in the server's configured timezone.
+      - rrule: "FREQ=WEEKLY;BYDAY=MO,WE,FR;BYHOUR=9"
+        dstart: "2025-01-01T00:00:00Z"
+
+  # --- Example 3: Calls triggered by an event. ---
+  # These calls are part of a sequence, triggered by an `event` block (see below).
+  - id: "launch-reminder"
+    subject: "🚀 Launch is in 1 hour!"
+    content: "Final checks! We go live in 1 hour."
+    destinations:
+      - type: "slack"
+        to: ["#launch-team"]
+    triggers:
+      # `sequence` links this call to an event with the same name.
+      # `delta` is the duration *after* the event's `start_time` to send this call.
+      - sequence: "product-x-launch"
+        delta: "1h"
+
+  - id: "launch-announcement"
+    subject: "🚀 We are LIVE!"
+    content: "Product X is now live! Congratulations to everyone involved!"
+    destinations:
+      - type: "slack"
+        to: ["#general", "#marketing"]
+    triggers:
+      - sequence: "product-x-launch"
+        delta: "1h30m" # Will be sent 30 minutes after the reminder.
+
+# `events` is a list of occurrences that can trigger call sequences.
+events:
+  - id: "event-for-product-x" # An ID for the event itself.
+    sequence: "product-x-launch" # The name that links it to calls.
+    # The `start_time` is the anchor time for all `delta` calculations in the linked calls.
+    start_time: "2025-11-15T13:00:00Z"
+    # Destinations in an event are merged with the destinations of each triggered call.
+    destinations:
+      - type: "email"
+        to:
+          - "all-company@example.com"

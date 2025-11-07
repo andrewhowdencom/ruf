@@ -128,8 +128,8 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 						}
 
 						// Use UTC for the 'between' calculation to ensure occurrences are consistent.
-						// Look for occurrences in the next 24 hours, with a 2-minute lookback to catch recent events.
-						for _, occurrence := range rule.Between(now.Add(-2*time.Minute), now.Add(24*time.Hour), true) {
+						// Look for occurrences in the next 365 days, with a 2-minute lookback to catch recent events.
+						for _, occurrence := range rule.Between(now.Add(-2*time.Minute), now.Add(365*24*time.Hour), true) {
 							newCall := createCallFromDefinition(callDef)
 							newCall.ScheduledAt = occurrence
 							if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {

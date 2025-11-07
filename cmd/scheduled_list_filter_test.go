@@ -15,6 +15,8 @@ import (
 
 func TestDoScheduledListWithFilter(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
+	viper.Set("worker.calculation.before", "24h")
+	viper.Set("worker.calculation.after", "24h")
 	defer viper.Reset()
 
 	futureTime := time.Now().Add(1 * time.Hour).UTC()

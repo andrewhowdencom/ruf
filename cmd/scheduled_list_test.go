@@ -27,6 +27,8 @@ func (m *mockSourcer) Source(url string) (*sourcer.Source, string, error) {
 func TestDoScheduledList(t *testing.T) {
 	// Set up viper for the test
 	viper.Set("source.urls", []string{"mock://url"})
+	viper.Set("worker.calculation.before", "24h")
+	viper.Set("worker.calculation.after", "24h")
 	defer viper.Reset()
 
 	now := time.Now().UTC()

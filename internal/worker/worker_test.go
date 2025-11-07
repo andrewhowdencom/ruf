@@ -87,12 +87,15 @@ func TestWorker_RunTick(t *testing.T) {
 
 	p := poller.New(s, 1*time.Minute)
 	viper.Set("source.urls", []string{"mock://url"})
-	viper.Set("worker.lookback_period", "10m")
+	viper.Set("worker.missed_lookback", "10m")
+	viper.Set("worker.calculation.before", "24h")
+	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err := w.RefreshSources()
+	err = w.RefreshSources()
 	assert.NoError(t, err)
 
 	err = w.ProcessMessages()
@@ -148,12 +151,14 @@ func TestWorker_RunTickWithOldCall(t *testing.T) {
 	p := poller.New(s, 1*time.Minute)
 
 	viper.Set("source.urls", []string{"mock://url"})
-	viper.Set("worker.lookback_period", "24h")
+	viper.Set("worker.calculation.before", "24h")
+	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err := w.RefreshSources()
+	err = w.RefreshSources()
 	assert.NoError(t, err)
 	err = w.ProcessMessages()
 	assert.NoError(t, err)
@@ -222,7 +227,8 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 	viper.Set("source.urls", []string{"mock://url"})
 
 	sched := scheduler.New(store)
-	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	assert.NoError(t, err)
 
 	err = w.RefreshSources()
 	assert.NoError(t, err)
@@ -288,12 +294,15 @@ func TestWorker_RunTickWithEvent(t *testing.T) {
 
 	p := poller.New(s, 1*time.Minute)
 	viper.Set("source.urls", []string{"mock://url"})
-	viper.Set("worker.lookback_period", "1h")
+	viper.Set("worker.missed_lookback", "1h")
+	viper.Set("worker.calculation.before", "24h")
+	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err := w.RefreshSources()
+	err = w.RefreshSources()
 	assert.NoError(t, err)
 	err = w.ProcessMessages()
 	assert.NoError(t, err)

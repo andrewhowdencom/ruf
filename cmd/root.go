@@ -54,6 +54,10 @@ func init() {
 	viper.SetDefault("datastore.type", "bbolt")
 	viper.SetDefault("datastore.project_id", "")
 
+	viper.SetDefault("worker.missed_lookback", "24h")
+	viper.SetDefault("worker.calculation.before", "24h")
+	viper.SetDefault("worker.calculation.after", "168h")
+
 	viper.SetDefault("otel.exporter.traces.endpoint", "")
 	viper.SetDefault("otel.exporter.traces.headers", map[string]string{})
 	viper.SetDefault("otel.exporter.metrics.endpoint", "")

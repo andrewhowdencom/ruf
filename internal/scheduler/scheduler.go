@@ -28,7 +28,7 @@ func New(storer kv.Storer) *Scheduler {
 
 // Expand takes a list of sources and expands the call definitions within them
 // into a flat list of concrete, scheduled calls based on their triggers.
-func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Call {
+func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, after time.Duration) []*model.Call {
 	if err := s.storer.ClearAllSlots(); err != nil {
 		slog.Error("failed to clear all slots", "error", err)
 		return nil
@@ -72,22 +72,31 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 							slog.Error("failed to parse cron", "error", err, "cron", trigger.Cron)
 							continue
 						}
-						// Check for the next run time within a recent window to catch jobs that should have just run.
-						effectiveScheduledAt := schedule.Next(now.Add(-2 * time.Minute)).Truncate(time.Minute)
 
-						newCall := createCallFromDefinition(callDef)
-						newCall.ScheduledAt = effectiveScheduledAt
-						if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
-							slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
-							if err != nil {
-								slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
-								continue
+						// Calculate occurrences within the window [now - before, now + after]
+						startTime := now.Add(-before)
+						endTime := now.Add(after)
+
+						// Start checking from the beginning of the window.
+						// We subtract a second to make sure that if the startTime itself is a valid
+						// cron time, it is included.
+						for t := schedule.Next(startTime.Add(-1 * time.Second)); !t.After(endTime); t = schedule.Next(t) {
+							effectiveScheduledAt := t.Truncate(time.Minute)
+
+							newCall := createCallFromDefinition(callDef)
+							newCall.ScheduledAt = effectiveScheduledAt
+							if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
+								slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
+								if err != nil {
+									slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
+									continue
+								}
+								newCall.ScheduledAt = slot
 							}
-							newCall.ScheduledAt = slot
+							newCall.ID = fmt.Sprintf("%s:cron:%s:%s:%s", callDef.ID, trigger.Cron, destination.Type, destination.To[0])
+							newCall.Destinations = []model.Destination{destination}
+							expandedCalls = append(expandedCalls, newCall)
 						}
-						newCall.ID = fmt.Sprintf("%s:cron:%s:%s:%s", callDef.ID, trigger.Cron, destination.Type, destination.To[0])
-						newCall.Destinations = []model.Destination{destination}
-						expandedCalls = append(expandedCalls, newCall)
 					}
 
 					// Handle RRule triggers
@@ -142,8 +151,9 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 						}
 
 						// Use UTC for the 'between' calculation to ensure occurrences are consistent.
-						// Look for occurrences in the next 365 days, with a 2-minute lookback to catch recent events.
-						for _, occurrence := range rule.Between(now.Add(-2*time.Minute), now.Add(365*24*time.Hour), true) {
+						startTime := now.Add(-before)
+						endTime := now.Add(after)
+						for _, occurrence := range rule.Between(startTime, endTime, true) {
 							newCall := createCallFromDefinition(callDef)
 							newCall.ScheduledAt = occurrence
 							if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {

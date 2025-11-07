@@ -57,7 +57,7 @@ func TestSchedulerExpand(t *testing.T) {
 		},
 	}
 
-	expandedCalls := s.Expand(sources, now)
+	expandedCalls := s.Expand(sources, now, 1*time.Hour, 24*time.Hour)
 
 	assert.Len(t, expandedCalls, 3, "should expand to 3 calls")
 

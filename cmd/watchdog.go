@@ -56,13 +56,15 @@ func runWatchdog() error {
 	p := poller.New(s, refreshInterval)
 
 	sched := scheduler.New(store)
-	w := worker.New(store, slackClient, emailClient, p, sched, refreshInterval)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, refreshInterval)
+	if err != nil {
+		return fmt.Errorf("failed to create worker: %w", err)
+	}
 	return w.Run()
 }
 
 func init() {
 	dispatcherCmd.AddCommand(watchdogCmd)
 	viper.SetDefault("watchdog.refresh_interval", "1h")
-	viper.SetDefault("watchdog.lookback_period", "24h")
 	viper.SetDefault("watchdog.port", 8080)
 }

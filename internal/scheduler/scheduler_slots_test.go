@@ -51,7 +51,7 @@ func TestSchedulerExpandWithSlots(t *testing.T) {
 		},
 	}
 
-	expandedCalls := s.Expand(sources, now)
+	expandedCalls := s.Expand(sources, now, 1*time.Hour, 24*time.Hour)
 	assert.Len(t, expandedCalls, 2, "should expand to 2 calls")
 
 	sort.Slice(expandedCalls, func(i, j int) bool {

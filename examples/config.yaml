@@ -41,10 +41,14 @@ slack:
 
 # worker contains the configuration for the worker.
 worker:
-  # refresh_interval is the interval at which the worker will refresh its sources.
-  refresh_interval: 1m
-  # lookback_period is the period to look back for calls that have not been sent.
-  lookback_period: 24h
+  # missed_lookback is the period to look back for calls that have not been sent.
+  missed_lookback: 24h
+  # calculation defines the window for recurring job calculation.
+  calculation:
+    # before is how far in the past to calculate jobs from.
+    before: 24h
+    # after is how far in the future to calculate jobs until.
+    after: 168h
 
 # source contains the configuration for the source of calls.
 source:

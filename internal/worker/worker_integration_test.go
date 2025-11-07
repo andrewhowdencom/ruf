@@ -77,12 +77,15 @@ _italic_
 
 	p := poller.New(s, 1*time.Minute)
 	viper.Set("source.urls", []string{"mock://url"})
-	viper.Set("worker.lookback_period", "10m")
+	viper.Set("worker.missed_lookback", "10m")
+	viper.Set("worker.calculation.before", "24h")
+	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	assert.NoError(t, err)
 
-	err := w.RefreshSources()
+	err = w.RefreshSources()
 	assert.NoError(t, err)
 	err = w.ProcessMessages()
 	assert.NoError(t, err)

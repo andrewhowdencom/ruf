@@ -22,26 +22,39 @@ import (
 
 // Worker is responsible for polling for calls and sending them.
 type Worker struct {
-	store           kv.Storer
-	slackClient     slack.Client
-	emailClient     email.Client
-	poller          *poller.Poller
-	scheduler       *scheduler.Scheduler
-	refreshInterval time.Duration
-	sources         []*sourcer.Source
-	mu              sync.RWMutex
+	store             kv.Storer
+	slackClient       slack.Client
+	emailClient       email.Client
+	poller            *poller.Poller
+	scheduler         *scheduler.Scheduler
+	refreshInterval   time.Duration
+	sources           []*sourcer.Source
+	mu                sync.RWMutex
+	calculationBefore time.Duration
+	calculationAfter  time.Duration
 }
 
 // New creates a new worker.
-func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, scheduler *scheduler.Scheduler, refreshInterval time.Duration) *Worker {
-	return &Worker{
-		store:           store,
-		slackClient:     slackClient,
-		emailClient:     emailClient,
-		poller:          poller,
-		scheduler:       scheduler,
-		refreshInterval: refreshInterval,
+func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, scheduler *scheduler.Scheduler, refreshInterval time.Duration) (*Worker, error) {
+	before, err := time.ParseDuration(viper.GetString("worker.calculation.before"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse worker.calculation.before: %w", err)
 	}
+	after, err := time.ParseDuration(viper.GetString("worker.calculation.after"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse worker.calculation.after: %w", err)
+	}
+
+	return &Worker{
+		store:             store,
+		slackClient:       slackClient,
+		emailClient:       emailClient,
+		poller:            poller,
+		scheduler:         scheduler,
+		refreshInterval:   refreshInterval,
+		calculationBefore: before,
+		calculationAfter:  after,
+	}, nil
 }
 
 // RunOnce performs a single poll for calls and sends them.
@@ -119,7 +132,7 @@ func (w *Worker) ProcessMessages() error {
 	sources := w.sources
 	w.mu.RUnlock()
 
-	calls := w.scheduler.Expand(sources, time.Now())
+	calls := w.scheduler.Expand(sources, time.Now(), w.calculationBefore, w.calculationAfter)
 
 	for _, call := range calls {
 		if err := w.processCall(call); err != nil {
@@ -129,7 +142,6 @@ func (w *Worker) ProcessMessages() error {
 
 	return nil
 }
-
 
 func (w *Worker) processCall(call *model.Call) error {
 	slog.Debug("processing call", "call_id", call.ID)
@@ -142,8 +154,8 @@ func (w *Worker) processCall(call *model.Call) error {
 		return nil
 	}
 
-	lookbackPeriod := viper.GetDuration("worker.lookback_period")
-	if effectiveScheduledAt.Before(now.Add(-lookbackPeriod)) {
+	missedLookback := viper.GetDuration("worker.missed_lookback")
+	if effectiveScheduledAt.Before(now.Add(-missedLookback)) {
 		slog.Warn("skipping call outside lookback period", "call_id", call.ID, "scheduled_at", effectiveScheduledAt)
 		dest := call.Destinations[0]
 		to := dest.To[0]

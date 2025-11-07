@@ -72,7 +72,17 @@ func doScheduledList(s sourcer.Sourcer, sched *scheduler.Scheduler, w io.Writer,
 		sources = append(sources, source)
 	}
 
-	expandedCalls := sched.Expand(sources, now)
+	// Read the calculation window from viper config
+	before, err := time.ParseDuration(viper.GetString("worker.calculation.before"))
+	if err != nil {
+		return fmt.Errorf("failed to parse worker.calculation.before: %w", err)
+	}
+	after, err := time.ParseDuration(viper.GetString("worker.calculation.after"))
+	if err != nil {
+		return fmt.Errorf("failed to parse worker.calculation.after: %w", err)
+	}
+
+	expandedCalls := sched.Expand(sources, now, before, after)
 
 	for _, call := range expandedCalls {
 		// If filters are provided, check if the call has a matching destination.

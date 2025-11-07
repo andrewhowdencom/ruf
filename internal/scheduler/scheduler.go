@@ -110,15 +110,29 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time) []*model.Ca
 								slog.Error("failed to load location", "error", err, "tzid", tzid)
 								continue
 							}
+
+							// Try to parse as a full datetime first
 							dtstart, err := time.ParseInLocation("20060102T150405", parts[1], loc)
 							if err != nil {
-								slog.Error("failed to parse dstart time", "error", err, "dstart", trigger.DStart)
-								continue
+								// If that fails, try to parse as a date-only string.
+								// This will result in a time of 00:00:00 in the specified location.
+								dtstart, err = time.ParseInLocation("20060102", parts[1], loc)
+								if err != nil {
+									slog.Error("failed to parse dstart as datetime or date", "error", err, "dstart", trigger.DStart)
+									continue
+								}
 							}
 							rOption.Dtstart = dtstart.UTC()
 						} else {
-							// If no DStart but BYHOUR is present, or for any other case, use 'now'.
-							rOption.Dtstart = now
+							// If the RRule itself contains a time, use 'now' as the DTStart to ensure
+							// the next occurrence is calculated correctly relative to the current time.
+							if strings.Contains(trigger.RRule, "BYHOUR") || strings.Contains(trigger.RRule, "BYMINUTE") || strings.Contains(trigger.RRule, "BYSECOND") {
+								rOption.Dtstart = now
+							} else {
+								// If no DStart and no time in the RRule, default to midnight UTC of the current day.
+								year, month, day := now.Date()
+								rOption.Dtstart = time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+							}
 						}
 
 						rule, err := rrule.NewRRule(*rOption)

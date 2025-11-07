@@ -1,0 +1,25 @@
+calls:
+  - id: weekly-team-sync
+    subject: "Team Sync: {{ .ScheduledAt.Format \"Monday, Jan 2\" }}"
+    destinations:
+      - type: slack
+        to:
+          - "#general"
+    triggers:
+      - rrule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=10;BYMINUTE=0"
+    data:
+      topics:
+        "Monday": "Project A Review"
+        "Tuesday": "User Feedback Session"
+        "Wednesday": "Tech Debt Planning"
+        "Thursday": "Demo Day Prep"
+        "Friday": "Sprint Retro & Planning"
+      default_topic: "General catch-up"
+    content: |
+      Hi Team,
+
+      Just a reminder about our daily sync at 10:00 AM.
+
+      Today's main topic will be: **{{ index .topics .ScheduledAt.Weekday.String | default .default_topic }}**
+
+      See you there!

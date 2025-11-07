@@ -59,6 +59,9 @@
           "items": {
             "$ref": "#/definitions/Trigger"
           }
+        },
+        "data": {
+          "type": "object"
         }
       },
       "required": ["id", "content", "destinations", "triggers"]

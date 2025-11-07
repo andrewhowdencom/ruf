@@ -55,7 +55,15 @@ func ProcessCall(call *model.Call, store kv.Storer, slackClient slack.Client, em
 			return fmt.Errorf("unsupported destination type: %s", dest.Type)
 		}
 
-		subject, err := subjectProcessor.Process(call.Subject, nil)
+		data := make(map[string]interface{})
+		if call.Data != nil {
+			for k, v := range call.Data {
+				data[k] = v
+			}
+		}
+		data["ScheduledAt"] = effectiveScheduledAt
+
+		subject, err := subjectProcessor.Process(call.Subject, data)
 		if err != nil {
 			slog.Error("failed to process subject", "error", err)
 			store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
@@ -68,7 +76,7 @@ func ProcessCall(call *model.Call, store kv.Storer, slackClient slack.Client, em
 			})
 			continue
 		}
-		content, err := contentProcessor.Process(call.Content, nil)
+		content, err := contentProcessor.Process(call.Content, data)
 		if err != nil {
 			slog.Error("failed to process content", "error", err)
 			store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{

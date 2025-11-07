@@ -36,19 +36,9 @@ func TestWorker_RunTick(t *testing.T) {
 
 	// Mock Slack client
 	slackClient := slack.NewMockClient()
-	var capturedSlackAuthor string
-	slackClient.PostMessageFunc = func(channel, author, subject, text string, campaign model.Campaign) (string, string, error) {
-		capturedSlackAuthor = author
-		return "C1234567890", "1234567890.123456", nil
-	}
 
 	// Mock Email client
 	emailClient := email.NewMockClient()
-	var capturedEmailAuthor string
-	emailClient.SendFunc = func(to []string, author, subject, body string, campaign model.Campaign) error {
-		capturedEmailAuthor = author
-		return nil
-	}
 
 	// Mock sourcer
 	s := &mockSourcer{
@@ -105,8 +95,10 @@ func TestWorker_RunTick(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, sentMessages, 2)
 
-	assert.Equal(t, "test@author.com", capturedSlackAuthor)
-	assert.Equal(t, "test@author.com", capturedEmailAuthor)
+	assert.Equal(t, 1, len(slackClient.PostMessageCalls()))
+	assert.Equal(t, "test@author.com", slackClient.PostMessageCalls()[0].Author)
+	assert.Equal(t, 1, len(emailClient.SendCalls()))
+	assert.Equal(t, "test@author.com", emailClient.SendCalls()[0].Author)
 }
 
 func TestWorker_RunTickWithOldCall(t *testing.T) {
@@ -236,7 +228,7 @@ func TestWorker_RunTickWithDeletedCall(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check that the slack client was not called
-	assert.Equal(t, 0, slackClient.PostMessageCount)
+	assert.Equal(t, 0, len(slackClient.PostMessageCalls()))
 }
 
 func TestWorker_RunTickWithEvent(t *testing.T) {

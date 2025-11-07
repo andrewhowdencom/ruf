@@ -97,7 +97,13 @@ func (c *SMTPClient) Send(to []string, author, subject, body string, campaign mo
 
 // MockClient is a mock implementation of the Client interface.
 type MockClient struct {
-	SendFunc func(to []string, author, subject, body string, campaign model.Campaign) error
+	sendCalls []struct {
+		To       []string
+		Author   string
+		Subject  string
+		Body     string
+		Campaign model.Campaign
+	}
 }
 
 // NewMockClient returns a new mock client.
@@ -107,8 +113,23 @@ func NewMockClient() *MockClient {
 
 // Send is the mock implementation of the Send method.
 func (m *MockClient) Send(to []string, author, subject, body string, campaign model.Campaign) error {
-	if m.SendFunc != nil {
-		return m.SendFunc(to, author, subject, body, campaign)
-	}
+	m.sendCalls = append(m.sendCalls, struct {
+		To       []string
+		Author   string
+		Subject  string
+		Body     string
+		Campaign model.Campaign
+	}{to, author, subject, body, campaign})
 	return nil
+}
+
+// SendCalls returns the recorded calls to Send.
+func (m *MockClient) SendCalls() []struct {
+	To       []string
+	Author   string
+	Subject  string
+	Body     string
+	Campaign model.Campaign
+} {
+	return m.sendCalls
 }

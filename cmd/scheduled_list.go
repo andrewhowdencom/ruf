@@ -113,14 +113,12 @@ func doScheduledList(s sourcer.Sourcer, sched *scheduler.Scheduler, w io.Writer,
 			continue
 		}
 
-		firstLine := strings.Split(call.Content, "\n")[0]
-
 		allScheduledCalls = append(allScheduledCalls, scheduledCall{
 			NextRun:      call.ScheduledAt,
 			ScheduleDef:  call.ID, // Using the expanded call ID as the schedule definition
 			Campaign:     call.Campaign.Name,
 			Subject:      call.Subject,
-			Content:      firstLine,
+			Content:      truncateContent(call.Content),
 			IsEvent:      false, // Expanded calls are always time-based
 			Destinations: call.Destinations,
 		})
@@ -164,4 +162,25 @@ func init() {
 	scheduledCmd.AddCommand(scheduledListCmd)
 	scheduledListCmd.Flags().String("type", "", "Filter by destination type (e.g., 'slack', 'email')")
 	scheduledListCmd.Flags().String("destination", "", "Filter by a specific destination (e.g., '#channel', 'user@example.com')")
+}
+
+func truncateContent(content string) string {
+	if len(content) <= 52 {
+		return content
+	}
+
+	// Find the last space, period, or newline within the first 52 characters
+	lastBreak := -1
+	for i := 51; i >= 0; i-- {
+		if content[i] == ' ' || content[i] == '.' || content[i] == '\n' {
+			lastBreak = i
+			break
+		}
+	}
+
+	if lastBreak != -1 {
+		return content[:lastBreak] + "..."
+	}
+
+	return content[:52] + "..."
 }

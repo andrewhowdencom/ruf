@@ -41,15 +41,18 @@ func TestDoScheduledList(t *testing.T) {
 		Calls: []model.Call{
 			{
 				ID: "past-call", Subject: "Past Call", Content: "This should be ignored.",
-				Triggers: []model.Trigger{{ScheduledAt: pastTime}},
+				Triggers:     []model.Trigger{{ScheduledAt: pastTime}},
+				Destinations: []model.Destination{{Type: "test", To: []string{"#test"}}},
 			},
 			{
 				ID: "far-future-call", Subject: "Far Future Call", Content: "Second in time-based list.",
-				Triggers: []model.Trigger{{ScheduledAt: farFutureTime}},
+				Triggers:     []model.Trigger{{ScheduledAt: farFutureTime}},
+				Destinations: []model.Destination{{Type: "test", To: []string{"#test"}}},
 			},
 			{
 				ID: "future-call", Subject: "Future Call", Content: "First in time-based list.",
-				Triggers: []model.Trigger{{ScheduledAt: futureTime}},
+				Triggers:     []model.Trigger{{ScheduledAt: futureTime}},
+				Destinations: []model.Destination{{Type: "test", To: []string{"#test"}}},
 			},
 		},
 	}

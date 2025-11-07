@@ -82,7 +82,7 @@ _italic_
 	viper.Set("worker.calculation.after", "24h")
 
 	sched := scheduler.New(store)
-	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute)
+	w, err := worker.New(store, slackClient, emailClient, p, sched, 1*time.Minute, false)
 	assert.NoError(t, err)
 
 	err = w.RefreshSources()

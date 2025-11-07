@@ -32,10 +32,11 @@ type Worker struct {
 	mu                sync.RWMutex
 	calculationBefore time.Duration
 	calculationAfter  time.Duration
+	dryRun            bool
 }
 
 // New creates a new worker.
-func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, scheduler *scheduler.Scheduler, refreshInterval time.Duration) (*Worker, error) {
+func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, poller *poller.Poller, scheduler *scheduler.Scheduler, refreshInterval time.Duration, dryRun bool) (*Worker, error) {
 	before, err := time.ParseDuration(viper.GetString("worker.calculation.before"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse worker.calculation.before: %w", err)
@@ -54,6 +55,7 @@ func New(store kv.Storer, slackClient slack.Client, emailClient email.Client, po
 		refreshInterval:   refreshInterval,
 		calculationBefore: before,
 		calculationAfter:  after,
+		dryRun:            dryRun,
 	}, nil
 }
 
@@ -236,6 +238,11 @@ func (w *Worker) processCall(call *model.Call) error {
 				Destination:  to,
 				CampaignName: call.Campaign.Name,
 			})
+			continue
+		}
+
+		if w.dryRun {
+			slog.Info("dry run: would send message", "call_id", call.ID, "campaign", call.Campaign.Name, "subject", subject, "destination", to, "type", dest.Type, "scheduled_at", effectiveScheduledAt)
 			continue
 		}
 

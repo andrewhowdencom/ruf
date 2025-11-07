@@ -81,6 +81,13 @@ var sendCmd = &cobra.Command{
 			renderedSubject = subjectBuffer.String()
 		}
 
+		if viper.GetBool("dispatcher.dry_run") {
+			fmt.Printf("dry run: would send message to %s (%s)\n", dest, destType)
+			fmt.Printf("Subject: %s\n", renderedSubject)
+			fmt.Printf("Content: %s\n", renderedContent.String())
+			return nil
+		}
+
 		switch destType {
 		case "slack":
 			slackToken := viper.GetString("slack.app.token")

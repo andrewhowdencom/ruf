@@ -69,9 +69,10 @@ func doScheduledMissed(s sourcer.Sourcer, store kv.Storer, sched *scheduler.Sche
 		sources = append(sources, source)
 	}
 
-	// We pass 'now' to Expand, but it also uses a small lookback.
-	// The primary filtering will happen after we get the results.
-	expandedCalls := sched.Expand(sources, now)
+	// We pass 'now' to Expand, and a lookback duration matching the 'days' flag.
+	// The `after` duration is 0 because we only care about past/missed calls.
+	lookbackDuration := time.Duration(days) * 24 * time.Hour
+	expandedCalls := sched.Expand(sources, now, lookbackDuration, 0)
 
 	for _, call := range expandedCalls {
 		// Filter 1: Is the call within our lookback window?

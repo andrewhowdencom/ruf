@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -84,7 +85,7 @@ func doScheduledMissed(s sourcer.Sourcer, store kv.Storer, sched *scheduler.Sche
 		sentMessage, err := store.GetSentMessage(call.ID)
 		if err != nil {
 			// If the error is ErrNotFound, it means we have no record, so it's missed.
-			if err == kv.ErrNotFound {
+			if errors.Is(err, kv.ErrNotFound) {
 				missedCalls = append(missedCalls, scheduledCall{
 					NextRun:      call.ScheduledAt,
 					Campaign:     call.Campaign.Name,

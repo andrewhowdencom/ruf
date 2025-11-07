@@ -23,9 +23,10 @@ type Call struct {
 	ID           string        `json:"id" yaml:"id"`
 	Author       string        `json:"author,omitempty" yaml:"author,omitempty"`
 	Subject      string        `json:"subject,omitempty" yaml:"subject,omitempty"`
-	Content      string        `json:"content" yaml:"content"`
-	Destinations []Destination `json:"destinations" yaml:"destinations"`
-	Triggers     []Trigger     `json:"triggers" yaml:"triggers"`
+	Content      string                 `json:"content" yaml:"content"`
+	Destinations []Destination          `json:"destinations" yaml:"destinations"`
+	Triggers     []Trigger              `json:"triggers" yaml:"triggers"`
+	Data         map[string]interface{} `json:"data,omitempty" yaml:"data,omitempty"`
 
 	Campaign Campaign `json:"campaign,omitempty" yaml:"campaign,omitempty"`
 

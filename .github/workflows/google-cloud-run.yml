@@ -19,9 +19,9 @@ jobs:
     - name: Google Auth
       uses: 'google-github-actions/auth@v1'
       with:
-          project_id: andrewhowdencom
-          workload_identity_provider: projects/422614898574/locations/global/workloadIdentityPools/github/providers/github
-          service_account: github-actions-runner@andrewhowdencom.iam.gserviceaccount.com
+          project_id: ruf-dispatcher
+          workload_identity_provider: projects/3899744063/locations/global/workloadIdentityPools/github-actions-pool/providers/github
+          service_account: github-actions-runner@ruf-dispatcher.iam.gserviceaccount.com
 
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
@@ -31,15 +31,15 @@ jobs:
 
     - name: Build and Push
       run: |-
-        docker build -t europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ruf/ruf:latest .
-        docker push europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ruf/ruf:latest
+        docker build -t europe-west3-docker.pkg.dev/ruf-dispatcher/ruf/ruf:latest .
+        docker push europe-west3-docker.pkg.dev/ruf-dispatcher/ruf/ruf:latest
 
     - name: Deploy Cloud Run Job
       run: |-
         gcloud run jobs deploy ruf-job \
-          --image europe-west3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ruf/ruf:latest \
+          --image europe-west3-docker.pkg.dev/ruf-dispatcher/ruf/ruf:latest \
           --region europe-west3 \
-          --service-account ruf-runner@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+          --service-account ruf-runner@ruf-dispatcher.iam.gserviceaccount.com \
           --set-secrets=/etc/ruf/config.yaml=ruf-config:latest
 
     - name: Create Cloud Scheduler Job

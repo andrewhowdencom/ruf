@@ -20,7 +20,7 @@ jobs:
       uses: 'google-github-actions/auth@v1'
       with:
           project_id: ruf-dispatcher
-          workload_identity_provider: projects/3899744063/locations/global/workloadIdentityPools/github-actions-pool/providers/github
+          workload_identity_provider: projects/3899744063/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
           service_account: github-actions-runner@ruf-dispatcher.iam.gserviceaccount.com
 
     - name: Set up Cloud SDK

@@ -54,6 +54,37 @@ func (s *Store) AddSentMessage(campaignID, callID string, sm *kv.SentMessage) er
 	return nil
 }
 
+// GetSchemaVersion retrieves the current schema version from the store.
+func (s *Store) GetSchemaVersion() (int, error) {
+	ctx := context.Background()
+	doc, err := s.client.Collection("meta").Doc("schema_version").Get(ctx)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("%w: failed to get schema version: %w", kv.ErrDBOperationFailed, err)
+	}
+
+	version, err := doc.DataAt("version")
+	if err != nil {
+		return 0, fmt.Errorf("%w: failed to get schema version: %w", kv.ErrDBOperationFailed, err)
+	}
+
+	return version.(int), nil
+}
+
+// SetSchemaVersion sets the current schema version in the store.
+func (s *Store) SetSchemaVersion(version int) error {
+	ctx := context.Background()
+	_, err := s.client.Collection("meta").Doc("schema_version").Set(ctx, map[string]interface{}{
+		"version": version,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: failed to set schema version: %w", kv.ErrDBOperationFailed, err)
+	}
+	return nil
+}
+
 // UpdateSentMessage updates an existing sent message in the store.
 func (s *Store) UpdateSentMessage(sm *kv.SentMessage) error {
 	ctx := context.Background()

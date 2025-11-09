@@ -14,6 +14,7 @@ import (
 var (
 	sentMessagesBucket = []byte("sent_messages")
 	slotsBucket        = []byte("slots")
+	metaBucket         = []byte("meta")
 )
 
 // Store manages the persistence of calls.
@@ -48,6 +49,9 @@ func newStore(dbPath string) (kv.Storer, error) {
 		}
 		if _, err := tx.CreateBucketIfNotExists(slotsBucket); err != nil {
 			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, slotsBucket, err)
+		}
+		if _, err := tx.CreateBucketIfNotExists(metaBucket); err != nil {
+			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, metaBucket, err)
 		}
 		return nil
 	})
@@ -93,6 +97,41 @@ func (s *Store) UpdateSentMessage(sm *kv.SentMessage) error {
 		}
 		if err := b.Put([]byte(sm.ID), buf); err != nil {
 			return fmt.Errorf("%w: failed to put sent message: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
+}
+
+// GetSchemaVersion retrieves the current schema version from the store.
+func (s *Store) GetSchemaVersion() (int, error) {
+	var version int
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(metaBucket)
+		v := b.Get([]byte("schema_version"))
+		if v == nil {
+			return nil
+		}
+		if err := json.Unmarshal(v, &version); err != nil {
+			return fmt.Errorf("%w: failed to unmarshal schema version: %w", kv.ErrSerializationFailed, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return version, nil
+}
+
+// SetSchemaVersion sets the current schema version in the store.
+func (s *Store) SetSchemaVersion(version int) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(metaBucket)
+		buf, err := json.Marshal(version)
+		if err != nil {
+			return fmt.Errorf("%w: failed to marshal schema version: %w", kv.ErrSerializationFailed, err)
+		}
+		if err := b.Put([]byte("schema_version"), buf); err != nil {
+			return fmt.Errorf("%w: failed to put schema version: %w", kv.ErrDBOperationFailed, err)
 		}
 		return nil
 	})
@@ -166,7 +205,7 @@ func (s *Store) GetSentMessage(id string) (*kv.SentMessage, error) {
 		v := b.Get([]byte(id))
 		if v == nil {
 			// If the full ID isn't found, try to find it by short ID.
-			found, err := s.GetSentMessageByShortID(id)
+			found, err := s.getSentMessageByShortID(tx, id)
 			if err != nil {
 				return err
 			}
@@ -186,26 +225,36 @@ func (s *Store) GetSentMessage(id string) (*kv.SentMessage, error) {
 
 // GetSentMessageByShortID retrieves a single sent message from the store by its short ID.
 func (s *Store) GetSentMessageByShortID(shortID string) (*kv.SentMessage, error) {
-	var foundMessages []*kv.SentMessage
+	var sm *kv.SentMessage
 	err := s.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket(sentMessagesBucket)
-		err := b.ForEach(func(k, v []byte) error {
-			var sm kv.SentMessage
-			if err := json.Unmarshal(v, &sm); err != nil {
-				return fmt.Errorf("%w: failed to unmarshal sent message: %w", kv.ErrSerializationFailed, err)
-			}
-			if strings.HasPrefix(sm.ShortID, shortID) {
-				foundMessages = append(foundMessages, &sm)
-			}
-			return nil
-		})
+		found, err := s.getSentMessageByShortID(tx, shortID)
 		if err != nil {
-			return fmt.Errorf("%w: failed to iterate over sent messages: %w", kv.ErrDBOperationFailed, err)
+			return err
 		}
+		sm = found
 		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+	return sm, nil
+}
+
+func (s *Store) getSentMessageByShortID(tx *bbolt.Tx, shortID string) (*kv.SentMessage, error) {
+	var foundMessages []*kv.SentMessage
+	b := tx.Bucket(sentMessagesBucket)
+	err := b.ForEach(func(k, v []byte) error {
+		var sm kv.SentMessage
+		if err := json.Unmarshal(v, &sm); err != nil {
+			return fmt.Errorf("%w: failed to unmarshal sent message: %w", kv.ErrSerializationFailed, err)
+		}
+		if strings.HasPrefix(sm.ShortID, shortID) {
+			foundMessages = append(foundMessages, &sm)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to iterate over sent messages: %w", kv.ErrDBOperationFailed, err)
 	}
 	if len(foundMessages) == 0 {
 		return nil, fmt.Errorf("%w: message with short id '%s'", kv.ErrNotFound, shortID)

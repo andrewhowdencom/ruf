@@ -11,8 +11,9 @@ import (
 
 // MockStore is a mock implementation of the Storer interface.
 type MockStore struct {
-	sentMessages map[string]*kv.SentMessage
-	mu           sync.Mutex
+	sentMessages  map[string]*kv.SentMessage
+	schemaVersion int
+	mu            sync.Mutex
 }
 
 // NewMockStore creates a new MockStore.
@@ -130,5 +131,20 @@ func (m *MockStore) ReserveSlot(slot time.Time, callID string) (bool, error) {
 }
 
 func (m *MockStore) ClearAllSlots() error {
+	return nil
+}
+
+// GetSchemaVersion retrieves the current schema version from the mock store.
+func (s *MockStore) GetSchemaVersion() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.schemaVersion, nil
+}
+
+// SetSchemaVersion sets the current schema version in the mock store.
+func (s *MockStore) SetSchemaVersion(version int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.schemaVersion = version
 	return nil
 }

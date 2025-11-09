@@ -54,6 +54,10 @@ type Storer interface {
 	// Slot management
 	ReserveSlot(slot time.Time, callID string) (bool, error)
 	ClearAllSlots() error
+
+	// Schema version management
+	GetSchemaVersion() (int, error)
+	SetSchemaVersion(version int) error
 }
 
 // GenerateShortID generates a short ID for a given ID.

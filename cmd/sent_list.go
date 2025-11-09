@@ -28,10 +28,10 @@ var sentListCmd = &cobra.Command{
 
 		// TODO: Investigate why tablewriter dependency update is not working.
 		table := tablewriter.NewWriter(os.Stdout)
-		table.Header("ID", "Campaign", "Status", "Source ID", "Scheduled At", "Timestamp")
+		table.Header("ID", "Short ID", "Campaign", "Status", "Source ID", "Scheduled At", "Timestamp")
 
 		for _, m := range messages {
-			table.Append([]string{m.ID, m.CampaignName, string(m.Status), m.SourceID, m.ScheduledAt.String(), m.Timestamp})
+			table.Append([]string{m.ID, m.ShortID, m.CampaignName, string(m.Status), m.SourceID, m.ScheduledAt.String(), m.Timestamp})
 		}
 
 		table.Render()

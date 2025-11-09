@@ -68,6 +68,7 @@ func (s *Store) AddSentMessage(campaignID, callID string, sm *kv.SentMessage) er
 	err := s.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(sentMessagesBucket)
 		sm.ID = s.generateID(campaignID, callID, sm.Type, sm.Destination)
+		sm.ShortID = kv.GenerateShortID(sm.ID)
 
 		buf, err := json.Marshal(sm)
 		if err != nil {
@@ -80,6 +81,21 @@ func (s *Store) AddSentMessage(campaignID, callID string, sm *kv.SentMessage) er
 		return nil
 	})
 	return err
+}
+
+// UpdateSentMessage updates an existing sent message in the store.
+func (s *Store) UpdateSentMessage(sm *kv.SentMessage) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(sentMessagesBucket)
+		buf, err := json.Marshal(sm)
+		if err != nil {
+			return fmt.Errorf("%w: failed to marshal sent message: %w", kv.ErrSerializationFailed, err)
+		}
+		if err := b.Put([]byte(sm.ID), buf); err != nil {
+			return fmt.Errorf("%w: failed to put sent message: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
 }
 
 // HasBeenSent checks if a message with the given sourceID and scheduledAt time has a 'sent' or 'deleted' status.
@@ -117,6 +133,7 @@ func (s *Store) generateID(campaignID, callID, destType, destination string) str
 	return strings.Join(parts, "@")
 }
 
+
 // ListSentMessages retrieves all sent messages from the store.
 func (s *Store) ListSentMessages() ([]*kv.SentMessage, error) {
 	var sentMessages []*kv.SentMessage
@@ -148,7 +165,13 @@ func (s *Store) GetSentMessage(id string) (*kv.SentMessage, error) {
 		b := tx.Bucket(sentMessagesBucket)
 		v := b.Get([]byte(id))
 		if v == nil {
-			return fmt.Errorf("%w: message with id '%s'", kv.ErrNotFound, id)
+			// If the full ID isn't found, try to find it by short ID.
+			found, err := s.GetSentMessageByShortID(id)
+			if err != nil {
+				return err
+			}
+			sm = *found
+			return nil
 		}
 		if err := json.Unmarshal(v, &sm); err != nil {
 			return fmt.Errorf("%w: failed to unmarshal sent message: %w", kv.ErrSerializationFailed, err)
@@ -161,20 +184,47 @@ func (s *Store) GetSentMessage(id string) (*kv.SentMessage, error) {
 	return &sm, nil
 }
 
+// GetSentMessageByShortID retrieves a single sent message from the store by its short ID.
+func (s *Store) GetSentMessageByShortID(shortID string) (*kv.SentMessage, error) {
+	var foundMessages []*kv.SentMessage
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(sentMessagesBucket)
+		err := b.ForEach(func(k, v []byte) error {
+			var sm kv.SentMessage
+			if err := json.Unmarshal(v, &sm); err != nil {
+				return fmt.Errorf("%w: failed to unmarshal sent message: %w", kv.ErrSerializationFailed, err)
+			}
+			if strings.HasPrefix(sm.ShortID, shortID) {
+				foundMessages = append(foundMessages, &sm)
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("%w: failed to iterate over sent messages: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(foundMessages) == 0 {
+		return nil, fmt.Errorf("%w: message with short id '%s'", kv.ErrNotFound, shortID)
+	}
+	if len(foundMessages) > 1 {
+		return nil, fmt.Errorf("%w: message with short id '%s'", kv.ErrAmbiguousID, shortID)
+	}
+	return foundMessages[0], nil
+}
+
 // DeleteSentMessage removes a sent message from the store.
 func (s *Store) DeleteSentMessage(id string) error {
+	sm, err := s.GetSentMessage(id)
+	if err != nil {
+		return err
+	}
+
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(sentMessagesBucket)
-		v := b.Get([]byte(id))
-		if v == nil {
-			return fmt.Errorf("%w: message with id '%s'", kv.ErrNotFound, id)
-		}
-
-		var sm kv.SentMessage
-		if err := json.Unmarshal(v, &sm); err != nil {
-			return fmt.Errorf("%w: failed to unmarshal sent message: %w", kv.ErrSerializationFailed, err)
-		}
-
 		sm.Status = kv.StatusDeleted
 
 		buf, err := json.Marshal(sm)
@@ -182,7 +232,7 @@ func (s *Store) DeleteSentMessage(id string) error {
 			return fmt.Errorf("%w: failed to marshal sent message: %w", kv.ErrSerializationFailed, err)
 		}
 
-		if err := b.Put([]byte(id), buf); err != nil {
+		if err := b.Put([]byte(sm.ID), buf); err != nil {
 			return fmt.Errorf("%w: failed to put sent message: %w", kv.ErrDBOperationFailed, err)
 		}
 		return nil

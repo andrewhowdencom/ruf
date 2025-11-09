@@ -62,7 +62,7 @@ events:
 	var stdout, stderr bytes.Buffer
 	rootCmd.SetOut(&stdout)
 	rootCmd.SetErr(&stderr)
-	rootCmd.SetArgs([]string{"migrate", "v1", legacyFile})
+	rootCmd.SetArgs([]string{"migrate", "source", "v1", legacyFile})
 	err = rootCmd.Execute()
 	assert.NoError(t, err)
 

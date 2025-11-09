@@ -95,5 +95,5 @@ var migrateV1Cmd = &cobra.Command{
 }
 
 func init() {
-	migrateCmd.AddCommand(migrateV1Cmd)
+	migrateSourceCmd.AddCommand(migrateV1Cmd)
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/ruf/internal/kv"
-	"github.com/andrewhowdencom/ruf/internal/model"
 	"go.etcd.io/bbolt"
 )
 
@@ -123,7 +122,7 @@ func (s *Store) UpdateSentMessage(sm *kv.SentMessage) error {
 }
 
 // Scheduled call management
-func (s *Store) AddScheduledCall(call *model.Call) error {
+func (s *Store) AddScheduledCall(call *kv.ScheduledCall) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(scheduledCallsBucket)
 		buf, err := json.Marshal(call)
@@ -137,8 +136,8 @@ func (s *Store) AddScheduledCall(call *model.Call) error {
 	})
 }
 
-func (s *Store) GetScheduledCall(id string) (*model.Call, error) {
-	var call model.Call
+func (s *Store) GetScheduledCall(id string) (*kv.ScheduledCall, error) {
+	var call kv.ScheduledCall
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(scheduledCallsBucket)
 		v := b.Get([]byte(id))
@@ -156,12 +155,12 @@ func (s *Store) GetScheduledCall(id string) (*model.Call, error) {
 	return &call, nil
 }
 
-func (s *Store) ListScheduledCalls() ([]*model.Call, error) {
-	var calls []*model.Call
+func (s *Store) ListScheduledCalls() ([]*kv.ScheduledCall, error) {
+	var calls []*kv.ScheduledCall
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(scheduledCallsBucket)
 		err := b.ForEach(func(k, v []byte) error {
-			var call model.Call
+			var call kv.ScheduledCall
 			if err := json.Unmarshal(v, &call); err != nil {
 				return fmt.Errorf("%w: failed to unmarshal scheduled call: %w", kv.ErrSerializationFailed, err)
 			}

@@ -8,7 +8,6 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/andrewhowdencom/ruf/internal/kv"
-	"github.com/andrewhowdencom/ruf/internal/model"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -56,15 +55,15 @@ func (s *Store) AddSentMessage(campaignID, callID string, sm *kv.SentMessage) er
 }
 
 // Scheduled call management
-func (s *Store) AddScheduledCall(call *model.Call) error {
+func (s *Store) AddScheduledCall(call *kv.ScheduledCall) error {
 	return fmt.Errorf("not implemented")
 }
 
-func (s *Store) GetScheduledCall(id string) (*model.Call, error) {
+func (s *Store) GetScheduledCall(id string) (*kv.ScheduledCall, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (s *Store) ListScheduledCalls() ([]*model.Call, error) {
+func (s *Store) ListScheduledCalls() ([]*kv.ScheduledCall, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

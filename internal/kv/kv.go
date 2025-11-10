@@ -42,6 +42,13 @@ type SentMessage struct {
 	CampaignName string    `json:"campaign_name"`
 }
 
+// ScheduledCall is a call that has been expanded and is ready to be scheduled.
+// This is the persistence model for a scheduled call.
+type ScheduledCall struct {
+	model.Call
+	ScheduledAt time.Time
+}
+
 // Storer is an interface that defines the methods for interacting with the datastore.
 type Storer interface {
 	AddSentMessage(campaignID, callID string, sm *SentMessage) error
@@ -58,9 +65,9 @@ type Storer interface {
 	ClearAllSlots() error
 
 	// Scheduled call management
-	AddScheduledCall(call *model.Call) error
-	GetScheduledCall(id string) (*model.Call, error)
-	ListScheduledCalls() ([]*model.Call, error)
+	AddScheduledCall(call *ScheduledCall) error
+	GetScheduledCall(id string) (*ScheduledCall, error)
+	ListScheduledCalls() ([]*ScheduledCall, error)
 	DeleteScheduledCall(id string) error
 	ClearScheduledCalls() error
 

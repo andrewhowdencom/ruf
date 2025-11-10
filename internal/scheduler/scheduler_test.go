@@ -79,7 +79,7 @@ func TestSchedulerExpand(t *testing.T) {
 	assert.Equal(t, "slack", expandedCalls[1].Destinations[0].Type)
 
 	// Test cron call (call-2)
-	assert.Equal(t, "call-2:cron:0 14 * * *:slack:#general", expandedCalls[2].ID)
+	assert.Equal(t, "call-2:cron:0 14 * * *:2023-01-01T14:00:00Z:slack:#general", expandedCalls[2].ID)
 	assert.Equal(t, time.Date(2023, 1, 1, 14, 0, 0, 0, time.UTC), expandedCalls[2].ScheduledAt)
 	assert.Len(t, expandedCalls[2].Destinations, 1)
 	assert.Equal(t, "slack", expandedCalls[2].Destinations[0].Type)

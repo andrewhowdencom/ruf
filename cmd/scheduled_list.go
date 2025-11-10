@@ -54,7 +54,8 @@ func doScheduledList(store kv.Storer, w io.Writer, destType, destination string)
 		return fmt.Errorf("failed to list scheduled calls: %w", err)
 	}
 
-	for _, call := range expandedCalls {
+	for _, pCall := range expandedCalls {
+		call := pCall.Call
 		// If filters are provided, check if the call has a matching destination.
 		if destType != "" || destination != "" {
 			matchFound := false
@@ -79,12 +80,12 @@ func doScheduledList(store kv.Storer, w io.Writer, destType, destination string)
 			}
 		}
 
-		if call.ScheduledAt.Before(now) {
+		if pCall.ScheduledAt.Before(now) {
 			continue
 		}
 
 		allScheduledCalls = append(allScheduledCalls, scheduledCall{
-			NextRun:      call.ScheduledAt,
+			NextRun:      pCall.ScheduledAt,
 			ScheduleDef:  call.ID, // Using the expanded call ID as the schedule definition
 			Campaign:     call.Campaign.Name,
 			Subject:      call.Subject,

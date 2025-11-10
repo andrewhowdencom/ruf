@@ -7,13 +7,12 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/kv"
-	"github.com/andrewhowdencom/ruf/internal/model"
 )
 
 // MockStore is a mock implementation of the Storer interface.
 type MockStore struct {
 	sentMessages   map[string]*kv.SentMessage
-	scheduledCalls map[string]*model.Call
+	scheduledCalls map[string]*kv.ScheduledCall
 	schemaVersion  int
 	mu             sync.Mutex
 }
@@ -22,7 +21,7 @@ type MockStore struct {
 func NewMockStore() *MockStore {
 	return &MockStore{
 		sentMessages:   make(map[string]*kv.SentMessage),
-		scheduledCalls: make(map[string]*model.Call),
+		scheduledCalls: make(map[string]*kv.ScheduledCall),
 	}
 }
 
@@ -153,14 +152,14 @@ func (s *MockStore) SetSchemaVersion(version int) error {
 }
 
 // Scheduled call management
-func (s *MockStore) AddScheduledCall(call *model.Call) error {
+func (s *MockStore) AddScheduledCall(call *kv.ScheduledCall) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.scheduledCalls[call.ID] = call
 	return nil
 }
 
-func (s *MockStore) GetScheduledCall(id string) (*model.Call, error) {
+func (s *MockStore) GetScheduledCall(id string) (*kv.ScheduledCall, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	call, ok := s.scheduledCalls[id]
@@ -170,10 +169,10 @@ func (s *MockStore) GetScheduledCall(id string) (*model.Call, error) {
 	return call, nil
 }
 
-func (s *MockStore) ListScheduledCalls() ([]*model.Call, error) {
+func (s *MockStore) ListScheduledCalls() ([]*kv.ScheduledCall, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var calls []*model.Call
+	var calls []*kv.ScheduledCall
 	for _, call := range s.scheduledCalls {
 		calls = append(calls, call)
 	}
@@ -190,6 +189,6 @@ func (s *MockStore) DeleteScheduledCall(id string) error {
 func (s *MockStore) ClearScheduledCalls() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.scheduledCalls = make(map[string]*model.Call)
+	s.scheduledCalls = make(map[string]*kv.ScheduledCall)
 	return nil
 }

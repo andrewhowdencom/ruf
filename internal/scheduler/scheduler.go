@@ -40,7 +40,11 @@ func (s *Scheduler) RefreshSchedule(sources []*sourcer.Source, now time.Time, be
 
 	slog.Debug("adding expanded calls to the datastore")
 	for _, call := range expandedCalls {
-		if err := s.storer.AddScheduledCall(call); err != nil {
+		scheduledCall := &kv.ScheduledCall{
+			Call:        *call,
+			ScheduledAt: call.ScheduledAt,
+		}
+		if err := s.storer.AddScheduledCall(scheduledCall); err != nil {
 			slog.Error("failed to add scheduled call", "error", err, "call_id", call.ID)
 		} else {
 			slog.Debug("added scheduled call", "call_id", call.ID, "scheduled_at", call.ScheduledAt)
@@ -109,7 +113,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 						// Start checking from the beginning of the window.
 						// We subtract a second to make sure that if the startTime itself is a valid
 						// cron time, it is included.
-						for t := schedule.Next(startTime.Add(-1 * time.Second)); !t.After(endTime); t = schedule.Next(t) {
+						for t := schedule.Next(startTime.Add(-1 * time.Second)); !t.IsZero() && !t.After(endTime); t = schedule.Next(t) {
 							effectiveScheduledAt := t.Truncate(time.Minute)
 
 							newCall := createCallFromDefinition(callDef)
@@ -122,7 +126,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 								}
 								newCall.ScheduledAt = slot
 							}
-							newCall.ID = fmt.Sprintf("%s:cron:%s:%s:%s", callDef.ID, trigger.Cron, destination.Type, destination.To[0])
+							newCall.ID = fmt.Sprintf("%s:cron:%s:%s:%s:%s", callDef.ID, trigger.Cron, newCall.ScheduledAt.Format(time.RFC3339), destination.Type, destination.To[0])
 							newCall.Destinations = []model.Destination{destination}
 							expandedCalls = append(expandedCalls, newCall)
 						}

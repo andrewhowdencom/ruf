@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/datastore"
+	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,29 +20,37 @@ func TestDoScheduledListRefactored(t *testing.T) {
 
 	// Create a mock store and pre-populate it with scheduled calls
 	store := datastore.NewMockStore()
-	store.AddScheduledCall(&model.Call{
-		ID:          "past-call",
-		Subject:     "Past Call",
+	store.AddScheduledCall(&kv.ScheduledCall{
+		Call: model.Call{
+			ID:      "past-call",
+			Subject: "Past Call",
+			Destinations: []model.Destination{{Type: "test", To: []string{"#past"}}},
+		},
 		ScheduledAt: pastTime,
-		Destinations: []model.Destination{{Type: "test", To: []string{"#past"}}},
 	})
-	store.AddScheduledCall(&model.Call{
-		ID:          "far-future-call",
-		Subject:     "Far Future Call",
+	store.AddScheduledCall(&kv.ScheduledCall{
+		Call: model.Call{
+			ID:      "far-future-call",
+			Subject: "Far Future Call",
+			Destinations: []model.Destination{{Type: "test", To: []string{"#far-future"}}},
+		},
 		ScheduledAt: farFutureTime,
-		Destinations: []model.Destination{{Type: "test", To: []string{"#far-future"}}},
 	})
-	store.AddScheduledCall(&model.Call{
-		ID:          "future-call",
-		Subject:     "Future Call",
+	store.AddScheduledCall(&kv.ScheduledCall{
+		Call: model.Call{
+			ID:      "future-call",
+			Subject: "Future Call",
+			Destinations: []model.Destination{{Type: "test", To: []string{"#future"}}},
+		},
 		ScheduledAt: futureTime,
-		Destinations: []model.Destination{{Type: "test", To: []string{"#future"}}},
 	})
-	store.AddScheduledCall(&model.Call{
-		ID:          "filtered-call",
-		Subject:     "Filtered Call",
+	store.AddScheduledCall(&kv.ScheduledCall{
+		Call: model.Call{
+			ID:      "filtered-call",
+			Subject: "Filtered Call",
+			Destinations: []model.Destination{{Type: "email", To: []string{"test@example.com"}}},
+		},
 		ScheduledAt: futureTime,
-		Destinations: []model.Destination{{Type: "email", To: []string{"test@example.com"}}},
 	})
 
 	t.Run("lists all future calls with no filter", func(t *testing.T) {

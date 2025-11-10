@@ -163,34 +163,34 @@ func (w *Worker) ProcessMessages() error {
 
 		missedLookback := viper.GetDuration("worker.missed_lookback")
 		if effectiveScheduledAt.Before(now.Add(-missedLookback)) {
-			slog.Warn("skipping call outside lookback period", "call_id", call.ID, "scheduled_at", effectiveScheduledAt)
-			dest := call.Destinations[0]
+			slog.Warn("skipping call outside lookback period", "call_id", call.Call.ID, "scheduled_at", effectiveScheduledAt)
+			dest := call.Call.Destinations[0]
 			to := dest.To[0]
-			err := w.store.AddSentMessage(call.Campaign.ID, call.ID, &kv.SentMessage{
-				SourceID:     call.ID,
+			err := w.store.AddSentMessage(call.Call.Campaign.ID, call.Call.ID, &kv.SentMessage{
+				SourceID:     call.Call.ID,
 				ScheduledAt:  effectiveScheduledAt,
 				Status:       kv.StatusFailed,
 				Type:         dest.Type,
 				Destination:  to,
-				CampaignName: call.Campaign.Name,
+				CampaignName: call.Call.Campaign.Name,
 			})
 			if err != nil {
-				slog.Error("failed to add sent message for missed call", "call_id", call.ID, "error", err)
+				slog.Error("failed to add sent message for missed call", "call_id", call.Call.ID, "error", err)
 			}
 
 			// Clean up the scheduled call from the datastore
-			if err := w.store.DeleteScheduledCall(call.ID); err != nil {
-				slog.Error("failed to delete scheduled call", "call_id", call.ID, "error", err)
+			if err := w.store.DeleteScheduledCall(call.Call.ID); err != nil {
+				slog.Error("failed to delete scheduled call", "call_id", call.Call.ID, "error", err)
 			}
 			continue
 		}
 
-		if err := ProcessCall(call, w.store, w.slackClient, w.emailClient, w.dryRun); err != nil {
-			slog.Error("error processing call", "call_id", call.ID, "error", err)
+		if err := ProcessCall(&call.Call, w.store, w.slackClient, w.emailClient, w.dryRun); err != nil {
+			slog.Error("error processing call", "call_id", call.Call.ID, "error", err)
 		} else {
 			// Clean up the scheduled call from the datastore
-			if err := w.store.DeleteScheduledCall(call.ID); err != nil {
-				slog.Error("failed to delete scheduled call", "call_id", call.ID, "error", err)
+			if err := w.store.DeleteScheduledCall(call.Call.ID); err != nil {
+				slog.Error("failed to delete scheduled call", "call_id", call.Call.ID, "error", err)
 			}
 		}
 	}

@@ -7,13 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andrewhowdencom/ruf/internal/model"
-	"github.com/andrewhowdencom/ruf/internal/scheduler"
-	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/andrewhowdencom/ruf/internal/datastore"
+	"github.com/andrewhowdencom/ruf/internal/kv"
+	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // scheduledListCmd represents the list command
@@ -22,11 +20,6 @@ var scheduledListCmd = &cobra.Command{
 	Short: "List scheduled calls",
 	Long:  `List all upcoming scheduled calls, showing the next time they are due to run.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s, err := buildSourcer()
-		if err != nil {
-			return fmt.Errorf("failed to build sourcer: %w", err)
-		}
-
 		destType, _ := cmd.Flags().GetString("type")
 		destination, _ := cmd.Flags().GetString("destination")
 
@@ -36,8 +29,7 @@ var scheduledListCmd = &cobra.Command{
 		}
 		defer store.Close()
 
-		sched := scheduler.New(store)
-		return doScheduledList(s, sched, cmd.OutOrStdout(), destType, destination)
+		return doScheduledList(store, cmd.OutOrStdout(), destType, destination)
 	},
 }
 
@@ -53,36 +45,14 @@ type scheduledCall struct {
 	Destinations  []model.Destination
 }
 
-func doScheduledList(s sourcer.Sourcer, sched *scheduler.Scheduler, w io.Writer, destType, destination string) error {
-	urls := viper.GetStringSlice("source.urls")
-	if len(urls) == 0 {
-		fmt.Fprintln(w, "No source URLs configured.")
-		return nil
-	}
-
+func doScheduledList(store kv.Storer, w io.Writer, destType, destination string) error {
 	var allScheduledCalls []scheduledCall
 	now := time.Now().UTC()
 
-	var sources []*sourcer.Source
-	for _, url := range urls {
-		source, _, err := s.Source(url)
-		if err != nil {
-			return fmt.Errorf("failed to source from %s: %w", url, err)
-		}
-		sources = append(sources, source)
-	}
-
-	// Read the calculation window from viper config
-	before, err := time.ParseDuration(viper.GetString("worker.calculation.before"))
+	expandedCalls, err := store.ListScheduledCalls()
 	if err != nil {
-		return fmt.Errorf("failed to parse worker.calculation.before: %w", err)
+		return fmt.Errorf("failed to list scheduled calls: %w", err)
 	}
-	after, err := time.ParseDuration(viper.GetString("worker.calculation.after"))
-	if err != nil {
-		return fmt.Errorf("failed to parse worker.calculation.after: %w", err)
-	}
-
-	expandedCalls := sched.Expand(sources, now, before, after)
 
 	for _, call := range expandedCalls {
 		// If filters are provided, check if the call has a matching destination.

@@ -30,7 +30,7 @@ var scheduledListCmd = &cobra.Command{
 		destType, _ := cmd.Flags().GetString("type")
 		destination, _ := cmd.Flags().GetString("destination")
 
-		store, err := datastore.NewStore()
+		store, err := datastore.NewStore(true)
 		if err != nil {
 			return fmt.Errorf("failed to create store: %w", err)
 		}

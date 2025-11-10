@@ -19,7 +19,7 @@ var sentDeleteCmd = &cobra.Command{
 	Short: "Delete a sent call.",
 	Long:  `Delete a sent call.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := datastore.NewStore()
+		store, err := datastore.NewStore(false)
 		if err != nil {
 			return fmt.Errorf("failed to create a new datastore: %w", err)
 		}

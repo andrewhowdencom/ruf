@@ -30,7 +30,7 @@ func runWatchdog() error {
 
 	go http.Start(viper.GetInt("watchdog.port"))
 
-	store, err := datastore.NewStore()
+	store, err := datastore.NewStore(false)
 	if err != nil {
 		return fmt.Errorf("failed to create store: %w", err)
 	}

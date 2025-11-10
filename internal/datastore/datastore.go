@@ -10,11 +10,14 @@ import (
 )
 
 // NewStore creates a new Store and initializes the database.
-func NewStore() (kv.Storer, error) {
+func NewStore(readOnly bool) (kv.Storer, error) {
 	datastoreType := viper.GetString("datastore.type")
 	switch datastoreType {
 	case "bbolt":
-		return bbolt.NewStore()
+		if readOnly {
+			return bbolt.NewReadOnlyStore()
+		}
+		return bbolt.NewReadWriteStore()
 	case "firestore":
 		projectID := viper.GetString("datastore.project_id")
 		if projectID == "" {

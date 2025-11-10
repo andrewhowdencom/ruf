@@ -15,7 +15,7 @@ var sentListCmd = &cobra.Command{
 	Short: "List all sent calls.",
 	Long:  `List all sent calls.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := datastore.NewStore()
+		store, err := datastore.NewStore(true)
 		if err != nil {
 			return fmt.Errorf("failed to create a new datastore: %w", err)
 		}

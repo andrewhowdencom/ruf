@@ -37,7 +37,7 @@ Example:
 
 		days, _ := cmd.Flags().GetInt("days")
 
-		store, err := datastore.NewStore()
+		store, err := datastore.NewStore(true)
 		if err != nil {
 			return fmt.Errorf("failed to create store: %w", err)
 		}

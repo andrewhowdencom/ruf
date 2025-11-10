@@ -13,7 +13,7 @@ var migrateDbCmd = &cobra.Command{
 	Short: "Apply all pending database migrations.",
 	Long:  `Apply all pending database migrations.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := datastore.NewStore()
+		store, err := datastore.NewStore(false)
 		if err != nil {
 			return fmt.Errorf("failed to create datastore: %w", err)
 		}

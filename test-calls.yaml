@@ -1,0 +1,20 @@
+calls:
+  - id: test-cron-call
+    subject: "Test Cron Call"
+    content: "This is a test cron call."
+    triggers:
+      - cron: "0 10 * * *"
+    destinations:
+      - type: "slack"
+        to:
+          - "#test"
+
+  - id: test-rrule-call
+    subject: "Test RRule Call"
+    content: "This is a test rrule call."
+    triggers:
+      - rrule: "FREQ=DAILY;COUNT=1"
+    destinations:
+      - type: "slack"
+        to:
+          - "#test"

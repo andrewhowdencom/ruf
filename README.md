@@ -14,6 +14,18 @@ To see a list of all available commands and flags, run:
 ruf --help
 ```
 
+## Persistent Scheduling
+
+The application uses a persistent scheduling model. Instead of calculating the schedule on-the-fly, the scheduler pre-calculates all call instances within a defined time window and stores them in its datastore. The worker then reads from this persistent schedule to determine which calls to send.
+
+The schedule is automatically recalculated whenever a change is detected in the source files. You can also manually trigger a refresh of the schedule by running the following command:
+
+```bash
+ruf scheduled refresh
+```
+
+This command will refetch all source files, recalculate the entire schedule, and update the datastore with the new information.
+
 ## Configuration
 
 The application is configured using a YAML file located at `$XDG_CONFIG_HOME/ruf/config.yaml`.

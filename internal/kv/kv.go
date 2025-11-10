@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"time"
+
+	"github.com/andrewhowdencom/ruf/internal/model"
 )
 
 // Err* are common errors returned by the datastore.
@@ -54,6 +56,13 @@ type Storer interface {
 	// Slot management
 	ReserveSlot(slot time.Time, callID string) (bool, error)
 	ClearAllSlots() error
+
+	// Scheduled call management
+	AddScheduledCall(call *model.Call) error
+	GetScheduledCall(id string) (*model.Call, error)
+	ListScheduledCalls() ([]*model.Call, error)
+	DeleteScheduledCall(id string) error
+	ClearScheduledCalls() error
 
 	// Schema version management
 	GetSchemaVersion() (int, error)

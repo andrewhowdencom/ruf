@@ -8,13 +8,15 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/andrewhowdencom/ruf/internal/kv"
+	"github.com/andrewhowdencom/ruf/internal/model"
 	"go.etcd.io/bbolt"
 )
 
 var (
-	sentMessagesBucket = []byte("sent_messages")
-	slotsBucket        = []byte("slots")
-	metaBucket         = []byte("meta")
+	sentMessagesBucket   = []byte("sent_messages")
+	scheduledCallsBucket = []byte("scheduled_calls")
+	slotsBucket          = []byte("slots")
+	metaBucket           = []byte("meta")
 )
 
 // Store manages the persistence of calls.
@@ -60,6 +62,9 @@ func newStore(dbPath string, readOnly bool) (kv.Storer, error) {
 		err = db.Update(func(tx *bbolt.Tx) error {
 			if _, err := tx.CreateBucketIfNotExists(sentMessagesBucket); err != nil {
 				return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, sentMessagesBucket, err)
+			}
+			if _, err := tx.CreateBucketIfNotExists(scheduledCallsBucket); err != nil {
+				return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, scheduledCallsBucket, err)
 			}
 			if _, err := tx.CreateBucketIfNotExists(slotsBucket); err != nil {
 				return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, slotsBucket, err)
@@ -112,6 +117,85 @@ func (s *Store) UpdateSentMessage(sm *kv.SentMessage) error {
 		}
 		if err := b.Put([]byte(sm.ID), buf); err != nil {
 			return fmt.Errorf("%w: failed to put sent message: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
+}
+
+// Scheduled call management
+func (s *Store) AddScheduledCall(call *model.Call) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(scheduledCallsBucket)
+		buf, err := json.Marshal(call)
+		if err != nil {
+			return fmt.Errorf("%w: failed to marshal scheduled call: %w", kv.ErrSerializationFailed, err)
+		}
+		if err := b.Put([]byte(call.ID), buf); err != nil {
+			return fmt.Errorf("%w: failed to put scheduled call: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
+}
+
+func (s *Store) GetScheduledCall(id string) (*model.Call, error) {
+	var call model.Call
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(scheduledCallsBucket)
+		v := b.Get([]byte(id))
+		if v == nil {
+			return fmt.Errorf("%w: scheduled call with id '%s'", kv.ErrNotFound, id)
+		}
+		if err := json.Unmarshal(v, &call); err != nil {
+			return fmt.Errorf("%w: failed to unmarshal scheduled call: %w", kv.ErrSerializationFailed, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &call, nil
+}
+
+func (s *Store) ListScheduledCalls() ([]*model.Call, error) {
+	var calls []*model.Call
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(scheduledCallsBucket)
+		err := b.ForEach(func(k, v []byte) error {
+			var call model.Call
+			if err := json.Unmarshal(v, &call); err != nil {
+				return fmt.Errorf("%w: failed to unmarshal scheduled call: %w", kv.ErrSerializationFailed, err)
+			}
+			calls = append(calls, &call)
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("%w: failed to iterate over scheduled calls: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return calls, nil
+}
+
+func (s *Store) DeleteScheduledCall(id string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(scheduledCallsBucket)
+		if err := b.Delete([]byte(id)); err != nil {
+			return fmt.Errorf("%w: failed to delete scheduled call: %w", kv.ErrDBOperationFailed, err)
+		}
+		return nil
+	})
+}
+
+func (s *Store) ClearScheduledCalls() error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		if err := tx.DeleteBucket(scheduledCallsBucket); err != nil {
+			return fmt.Errorf("%w: failed to delete bucket '%s': %w", kv.ErrDBOperationFailed, scheduledCallsBucket, err)
+		}
+		if _, err := tx.CreateBucket(scheduledCallsBucket); err != nil {
+			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, scheduledCallsBucket, err)
 		}
 		return nil
 	})

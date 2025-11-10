@@ -1,6 +1,9 @@
 package worker
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -27,6 +30,7 @@ type Worker struct {
 	scheduler         *scheduler.Scheduler
 	refreshInterval   time.Duration
 	sources           []*sourcer.Source
+	lastSourcesHash   string
 	mu                sync.RWMutex
 	calculationBefore time.Duration
 	calculationAfter  time.Duration
@@ -119,6 +123,20 @@ func (w *Worker) RefreshSources() error {
 		return err
 	}
 
+	// Check if the sources have changed
+	newSourcesHash, err := w.hashSources(sources)
+	if err != nil {
+		return fmt.Errorf("failed to hash sources: %w", err)
+	}
+
+	if newSourcesHash != w.lastSourcesHash {
+		slog.Info("sources have changed, refreshing schedule")
+		if err := w.scheduler.RefreshSchedule(sources, time.Now(), w.calculationBefore, w.calculationAfter); err != nil {
+			return fmt.Errorf("failed to refresh schedule: %w", err)
+		}
+		w.lastSourcesHash = newSourcesHash
+	}
+
 	w.mu.Lock()
 	w.sources = sources
 	w.mu.Unlock()
@@ -128,11 +146,10 @@ func (w *Worker) RefreshSources() error {
 
 // ProcessMessages performs a single poll for calls and sends them.
 func (w *Worker) ProcessMessages() error {
-	w.mu.RLock()
-	sources := w.sources
-	w.mu.RUnlock()
-
-	calls := w.scheduler.Expand(sources, time.Now(), w.calculationBefore, w.calculationAfter)
+	calls, err := w.store.ListScheduledCalls()
+	if err != nil {
+		return fmt.Errorf("failed to list scheduled calls: %w", err)
+	}
 
 	for _, call := range calls {
 		now := time.Now().UTC()
@@ -160,13 +177,32 @@ func (w *Worker) ProcessMessages() error {
 			if err != nil {
 				slog.Error("failed to add sent message for missed call", "call_id", call.ID, "error", err)
 			}
+
+			// Clean up the scheduled call from the datastore
+			if err := w.store.DeleteScheduledCall(call.ID); err != nil {
+				slog.Error("failed to delete scheduled call", "call_id", call.ID, "error", err)
+			}
 			continue
 		}
 
 		if err := ProcessCall(call, w.store, w.slackClient, w.emailClient, w.dryRun); err != nil {
 			slog.Error("error processing call", "call_id", call.ID, "error", err)
+		} else {
+			// Clean up the scheduled call from the datastore
+			if err := w.store.DeleteScheduledCall(call.ID); err != nil {
+				slog.Error("failed to delete scheduled call", "call_id", call.ID, "error", err)
+			}
 		}
 	}
 
 	return nil
+}
+
+func (w *Worker) hashSources(sources []*sourcer.Source) (string, error) {
+	b, err := json.Marshal(sources)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(b)
+	return hex.EncodeToString(hash[:]), nil
 }

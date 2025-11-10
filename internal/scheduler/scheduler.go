@@ -26,6 +26,22 @@ func New(storer kv.Storer) *Scheduler {
 	}
 }
 
+// RefreshSchedule expands the call definitions and stores them in the datastore.
+func (s *Scheduler) RefreshSchedule(sources []*sourcer.Source, now time.Time, before, after time.Duration) error {
+	if err := s.storer.ClearScheduledCalls(); err != nil {
+		return fmt.Errorf("failed to clear scheduled calls: %w", err)
+	}
+
+	expandedCalls := s.Expand(sources, now, before, after)
+	for _, call := range expandedCalls {
+		if err := s.storer.AddScheduledCall(call); err != nil {
+			slog.Error("failed to add scheduled call", "error", err, "call_id", call.ID)
+		}
+	}
+
+	return nil
+}
+
 // Expand takes a list of sources and expands the call definitions within them
 // into a flat list of concrete, scheduled calls based on their triggers.
 func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, after time.Duration) []*model.Call {

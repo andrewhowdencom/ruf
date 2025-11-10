@@ -8,6 +8,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/andrewhowdencom/ruf/internal/kv"
+	"github.com/andrewhowdencom/ruf/internal/model"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -52,6 +53,27 @@ func (s *Store) AddSentMessage(campaignID, callID string, sm *kv.SentMessage) er
 		return fmt.Errorf("%w: failed to add sent message: %w", kv.ErrDBOperationFailed, err)
 	}
 	return nil
+}
+
+// Scheduled call management
+func (s *Store) AddScheduledCall(call *model.Call) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (s *Store) GetScheduledCall(id string) (*model.Call, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *Store) ListScheduledCalls() ([]*model.Call, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *Store) DeleteScheduledCall(id string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (s *Store) ClearScheduledCalls() error {
+	return fmt.Errorf("not implemented")
 }
 
 // GetSchemaVersion retrieves the current schema version from the store.

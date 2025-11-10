@@ -59,7 +59,7 @@ func TestSendCmdSlack(t *testing.T) {
 	test.setup(t)
 
 	// Inject the mock clients and datastore
-	datastoreNewStore = func() (kv.Storer, error) {
+	datastoreNewStore = func(readOnly bool) (kv.Storer, error) {
 		return test.mockStore, nil
 	}
 	slackNewClient = func(token string) slack.Client {
@@ -100,7 +100,7 @@ func TestSendCmdEmail(t *testing.T) {
 	test.setup(t)
 
 	// Inject the mock clients and datastore
-	datastoreNewStore = func() (kv.Storer, error) {
+	datastoreNewStore = func(readOnly bool) (kv.Storer, error) {
 		return test.mockStore, nil
 	}
 	emailNewClient = func(host string, port int, username, password, from string) email.Client {

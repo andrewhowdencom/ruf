@@ -22,41 +22,56 @@ type Store struct {
 	db *bbolt.DB
 }
 
-// NewStore creates a new Store and initializes the database.
-func NewStore() (kv.Storer, error) {
+// NewReadWriteStore creates a new read-write Store and initializes the database.
+func NewReadWriteStore() (kv.Storer, error) {
 	dbPath, err := xdg.DataFile("ruf/ruf.db")
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to get db path: %w", kv.ErrDBOperationFailed, err)
 	}
 
-	return newStore(dbPath)
+	return newStore(dbPath, false)
+}
+
+// NewReadOnlyStore creates a new read-only Store and initializes the database.
+func NewReadOnlyStore() (kv.Storer, error) {
+	dbPath, err := xdg.DataFile("ruf/ruf.db")
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to get db path: %w", kv.ErrDBOperationFailed, err)
+	}
+
+	return newStore(dbPath, true)
 }
 
 // NewTestStore creates a new Store for testing purposes.
 func NewTestStore(dbPath string) (kv.Storer, error) {
-	return newStore(dbPath)
+	return newStore(dbPath, false)
 }
 
-func newStore(dbPath string) (kv.Storer, error) {
-	db, err := bbolt.Open(dbPath, 0600, nil)
+func newStore(dbPath string, readOnly bool) (kv.Storer, error) {
+	options := &bbolt.Options{
+		ReadOnly: readOnly,
+	}
+	db, err := bbolt.Open(dbPath, 0600, options)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to open db: %w", kv.ErrDBOperationFailed, err)
 	}
 
-	err = db.Update(func(tx *bbolt.Tx) error {
-		if _, err := tx.CreateBucketIfNotExists(sentMessagesBucket); err != nil {
-			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, sentMessagesBucket, err)
+	if !readOnly {
+		err = db.Update(func(tx *bbolt.Tx) error {
+			if _, err := tx.CreateBucketIfNotExists(sentMessagesBucket); err != nil {
+				return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, sentMessagesBucket, err)
+			}
+			if _, err := tx.CreateBucketIfNotExists(slotsBucket); err != nil {
+				return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, slotsBucket, err)
+			}
+			if _, err := tx.CreateBucketIfNotExists(metaBucket); err != nil {
+				return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, metaBucket, err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		if _, err := tx.CreateBucketIfNotExists(slotsBucket); err != nil {
-			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, slotsBucket, err)
-		}
-		if _, err := tx.CreateBucketIfNotExists(metaBucket); err != nil {
-			return fmt.Errorf("%w: failed to create bucket '%s': %w", kv.ErrDBOperationFailed, metaBucket, err)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	return &Store{db: db}, nil

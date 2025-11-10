@@ -71,7 +71,7 @@ var sendCmd = &cobra.Command{
 		}
 		selectedCall.ScheduledAt = time.Now()
 
-		store, err := datastoreNewStore()
+		store, err := datastoreNewStore(false)
 		if err != nil {
 			return fmt.Errorf("failed to create a new datastore: %w", err)
 		}

@@ -27,7 +27,7 @@ var runCmd = &cobra.Command{
 func doRun() error {
 	slog.Debug("performing a single run")
 
-	store, err := datastore.NewStore()
+	store, err := datastore.NewStore(false)
 	if err != nil {
 		return fmt.Errorf("failed to create store: %w", err)
 	}

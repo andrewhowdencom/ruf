@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/andrewhowdencom/ruf/internal/datastore"
@@ -41,6 +42,7 @@ This command will:
 		if err != nil {
 			return fmt.Errorf("failed to source calls: %w", err)
 		}
+		slog.Debug("polled sources", "count", len(sources))
 
 		before, err := time.ParseDuration(viper.GetString("worker.calculation.before"))
 		if err != nil {
@@ -51,11 +53,12 @@ This command will:
 			return fmt.Errorf("failed to parse worker.calculation.after: %w", err)
 		}
 
+		slog.Debug("refreshing schedule", "before", before, "after", after)
 		if err := s.RefreshSchedule(sources, time.Now(), before, after); err != nil {
 			return fmt.Errorf("failed to refresh schedule: %w", err)
 		}
 
-		fmt.Println("Schedule refreshed successfully")
+		slog.Info("schedule refreshed successfully")
 
 		return nil
 	},

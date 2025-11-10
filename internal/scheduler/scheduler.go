@@ -28,16 +28,25 @@ func New(storer kv.Storer) *Scheduler {
 
 // RefreshSchedule expands the call definitions and stores them in the datastore.
 func (s *Scheduler) RefreshSchedule(sources []*sourcer.Source, now time.Time, before, after time.Duration) error {
+	slog.Debug("clearing all scheduled calls")
 	if err := s.storer.ClearScheduledCalls(); err != nil {
 		return fmt.Errorf("failed to clear scheduled calls: %w", err)
 	}
+	slog.Debug("successfully cleared all scheduled calls")
 
+	slog.Debug("expanding call definitions into scheduled calls")
 	expandedCalls := s.Expand(sources, now, before, after)
+	slog.Debug("call expansion complete", "count", len(expandedCalls))
+
+	slog.Debug("adding expanded calls to the datastore")
 	for _, call := range expandedCalls {
 		if err := s.storer.AddScheduledCall(call); err != nil {
 			slog.Error("failed to add scheduled call", "error", err, "call_id", call.ID)
+		} else {
+			slog.Debug("added scheduled call", "call_id", call.ID, "scheduled_at", call.ScheduledAt)
 		}
 	}
+	slog.Debug("finished adding expanded calls to the datastore")
 
 	return nil
 }
@@ -53,7 +62,8 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 	now = now.UTC() // Ensure 'now' is in UTC for consistent calculations.
 	var expandedCalls []*model.Call
 
-	for _, source := range sources {
+	for i, source := range sources {
+		slog.Debug("processing source", "index", i, "calls", len(source.Calls), "events", len(source.Events))
 		// Build an event map for the current source to allow for efficient lookups.
 		eventsBySequence := make(map[string][]model.Event)
 		for _, event := range source.Events {
@@ -61,10 +71,12 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 		}
 
 		for _, callDef := range source.Calls {
+			slog.Debug("processing call definition", "call_id", callDef.ID)
 			for _, trigger := range callDef.Triggers {
 				for _, destination := range callDef.Destinations {
 					// Handle direct schedule triggers
 					if !trigger.ScheduledAt.IsZero() {
+						slog.Debug("processing 'scheduled_at' trigger", "call_id", callDef.ID, "scheduled_at", trigger.ScheduledAt)
 						newCall := createCallFromDefinition(callDef)
 						newCall.ScheduledAt = trigger.ScheduledAt
 						newCall.ID = fmt.Sprintf("%s:scheduled_at:%s:%s:%s", callDef.ID, trigger.ScheduledAt.Format(time.RFC3339), destination.Type, destination.To[0])
@@ -82,6 +94,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 
 					// Handle cron triggers
 					if trigger.Cron != "" {
+						slog.Debug("processing 'cron' trigger", "call_id", callDef.ID, "cron", trigger.Cron)
 						parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 						schedule, err := parser.Parse(trigger.Cron)
 						if err != nil {
@@ -117,6 +130,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 
 					// Handle RRule triggers
 					if trigger.RRule != "" {
+						slog.Debug("processing 'rrule' trigger", "call_id", callDef.ID, "rrule", trigger.RRule, "dstart", trigger.DStart)
 						rOption, err := rrule.StrToROption(trigger.RRule)
 						if err != nil {
 							slog.Error("failed to parse rrule", "error", err, "rrule", trigger.RRule)
@@ -195,8 +209,10 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 
 					// Handle event sequence triggers
 					if trigger.Sequence != "" && trigger.Delta != "" {
+						slog.Debug("processing 'sequence' trigger", "call_id", callDef.ID, "sequence", trigger.Sequence, "delta", trigger.Delta)
 						if matchingEvents, ok := eventsBySequence[trigger.Sequence]; ok {
 							for _, event := range matchingEvents {
+								slog.Debug("found matching event for sequence", "call_id", callDef.ID, "event_sequence", event.Sequence, "event_start_time", event.StartTime)
 								delta, err := time.ParseDuration(trigger.Delta)
 								if err != nil {
 									slog.Error("failed to parse delta", "error", err, "delta", trigger.Delta)
@@ -222,6 +238,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 // createCallFromDefinition creates a new call instance from a call definition,
 // ensuring that mutable fields like Destinations are deep-copied.
 func (s *Scheduler) findNextAvailableSlot(call *model.Call, destination model.Destination, scheduledAt time.Time, now time.Time) (time.Time, error) {
+	slog.Debug("finding next available slot", "call_id", call.ID, "destination", destination.To[0], "scheduled_at", scheduledAt)
 	loc, err := time.LoadLocation(viper.GetString("slots.timezone"))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to load timezone: %w", err)
@@ -240,6 +257,7 @@ func (s *Scheduler) findNextAvailableSlot(call *model.Call, destination model.De
 	var slotsByDay map[string][]string
 	for _, key := range keys {
 		if viper.IsSet(key) {
+			slog.Debug("found slots configuration", "key", key)
 			slotsByDay = viper.GetStringMapStringSlice(key)
 			break
 		}
@@ -278,6 +296,7 @@ func (s *Scheduler) findNextAvailableSlot(call *model.Call, destination model.De
 					return time.Time{}, fmt.Errorf("failed to reserve slot: %w", err)
 				}
 				if reserved {
+					slog.Debug("reserved slot", "slot", slotTime, "key", key)
 					return slotTime, nil
 				}
 			}
@@ -288,6 +307,7 @@ func (s *Scheduler) findNextAvailableSlot(call *model.Call, destination model.De
 }
 
 func createCallFromDefinition(def model.Call) *model.Call {
+	slog.Debug("creating new call from definition", "call_id", def.ID)
 	newCall := def // Start with a shallow copy
 
 	// If the campaign name is empty, set a default.

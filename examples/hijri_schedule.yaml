@@ -1,0 +1,40 @@
+# examples/hijri_schedule.yaml
+#
+# This file demonstrates how to schedule calls based on the Islamic (Hijri) calendar.
+#
+
+calls:
+  - id: eid-al-fitr-announcement
+    subject: "Eid Mubarak!"
+    content: "Wishing everyone a joyous Eid al-Fitr!"
+    destinations:
+      - type: slack
+        to:
+          - "#announcements"
+    triggers:
+      # Schedule for 1st of Shawwal at 9:00 AM UTC.
+      - hijri: "1 Shawwal"
+        time: "09:00:00Z"
+
+  - id: eid-al-adha-announcement
+    subject: "Eid al-Adha Greetings"
+    content: "Warm wishes on Eid al-Adha!"
+    destinations:
+      - type: email
+        to:
+          - "team@example.com"
+    triggers:
+      # Schedule for 10th of Dhu al-Hijjah at 8:30 AM in the America/New_York timezone.
+      - hijri: "10 Dhu al-Hijjah"
+        time: "08:30:00-04:00"
+
+  - id: muharram-reminder
+    subject: "Islamic New Year"
+    content: "A reminder that the Islamic New Year begins tomorrow."
+    destinations:
+      - type: slack
+        to:
+          - "#reminders"
+    triggers:
+      # Schedule for the 1st of Muharram, at midnight UTC (default time).
+      - hijri: "1 Muharram"

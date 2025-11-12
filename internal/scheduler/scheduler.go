@@ -3,12 +3,14 @@ package scheduler
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/kv"
+	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
+	"github.com/hablullah/go-hijri"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/viper"
 	"github.com/teambition/rrule-go"
@@ -209,6 +211,120 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 					} else if trigger.DStart != "" {
 						slog.Error("dstart specified without rrule", "dstart", trigger.DStart)
 						continue
+					}
+
+					// Handle Hijri calendar triggers
+					if trigger.Hijri != "" {
+						slog.Debug("processing 'hijri' trigger", "call_id", callDef.ID, "hijri", trigger.Hijri)
+						parts := strings.Split(trigger.Hijri, " ")
+						if len(parts) < 2 {
+							slog.Error("invalid hijri date format, expected 'day month'", "hijri", trigger.Hijri)
+							continue
+						}
+						day, err := strconv.Atoi(parts[0])
+						if err != nil {
+							slog.Error("invalid day in hijri date", "error", err, "hijri", trigger.Hijri)
+							continue
+						}
+
+						monthStr := strings.ToLower(strings.Join(parts[1:], " "))
+						var month int64
+						switch monthStr {
+						case "muharram":
+							month = 1
+						case "safar":
+							month = 2
+						case "rabi' al-awwal", "rabi al-awwal", "rabi'ul-awwal", "rabi'ul awwal":
+							month = 3
+						case "rabi' al-thani", "rabi al-thani", "rabi'ul-athir", "rabi'ul athir":
+							month = 4
+						case "jumada al-ula", "jumada al-awwal":
+							month = 5
+						case "jumada al-thani", "jumada al-akhirah":
+							month = 6
+						case "rajab":
+							month = 7
+						case "sha'ban", "shaban":
+							month = 8
+						case "ramadan":
+							month = 9
+						case "shawwal":
+							month = 10
+						case "dhu al-qi'dah", "dhu al-qid'ah":
+							month = 11
+						case "dhu al-hijjah":
+							month = 12
+						default:
+							slog.Error("invalid month in hijri date", "month", monthStr)
+							continue
+						}
+
+						// We need to find the Gregorian year that corresponds to the Hijri year for the given date.
+						// We'll start with the current Gregorian year and check if the date has already passed.
+						// If it has, we'll check the next Gregorian year.
+						var gregorianDate time.Time
+						for i := 0; i < 2; i++ {
+							currentHijriYear, _ := hijri.CreateHijriDate(now.AddDate(i, 0, 0), hijri.Default)
+							hDate := hijri.HijriDate{Year: currentHijriYear.Year, Month: month, Day: int64(day)}
+							gDate := hDate.ToGregorian()
+							if gDate.After(now) {
+								gregorianDate = gDate
+								break
+							}
+						}
+
+						if gregorianDate.IsZero() {
+							slog.Error("could not find a future gregorian date for the given hijri date", "hijri", trigger.Hijri)
+							continue
+						}
+
+						scheduledAt := gregorianDate
+						loc := time.UTC // Default to UTC for time parsing
+						timeStr := trigger.Time
+						if trigger.Time != "" {
+							// Check for timezone offset
+							if strings.Contains(trigger.Time, "Z") || strings.Contains(trigger.Time, "+") || strings.Contains(trigger.Time, "-") {
+								// Parse with timezone
+								parsedTime, err := time.Parse(time.RFC3339, fmt.Sprintf("2006-01-02T%s", trigger.Time))
+								if err == nil {
+									loc = parsedTime.Location()
+									timeStr = parsedTime.Format("15:04:05")
+								} else {
+									slog.Error("failed to parse time with timezone", "error", err, "time", trigger.Time)
+									continue
+								}
+							}
+
+							// Parse the time part
+							t, err := time.Parse("15:04:05", timeStr)
+							if err != nil {
+								t, err = time.Parse("15:04", timeStr)
+								if err != nil {
+									slog.Error("failed to parse time", "error", err, "time", timeStr)
+									continue
+								}
+							}
+							scheduledAt = time.Date(gregorianDate.Year(), gregorianDate.Month(), gregorianDate.Day(), t.Hour(), t.Minute(), t.Second(), 0, loc)
+						} else {
+							// Default to midnight UTC
+							scheduledAt = time.Date(gregorianDate.Year(), gregorianDate.Month(), gregorianDate.Day(), 0, 0, 0, 0, time.UTC)
+						}
+
+						newCall := createCallFromDefinition(callDef)
+						newCall.ScheduledAt = scheduledAt
+						newCall.ID = fmt.Sprintf("%s:hijri:%s:%s:%s:%s", callDef.ID, trigger.Hijri, scheduledAt.Format(time.RFC3339), destination.Type, destination.To[0])
+
+						if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
+							slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
+							if err != nil {
+								slog.Error("failed to find next available slot", "error", err, "call_id", newCall.ID)
+								continue
+							}
+							newCall.ScheduledAt = slot
+						}
+
+						newCall.Destinations = []model.Destination{destination}
+						expandedCalls = append(expandedCalls, newCall)
 					}
 
 					// Handle event sequence triggers

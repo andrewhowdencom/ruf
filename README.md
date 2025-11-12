@@ -100,6 +100,7 @@ Each call must have a list of `triggers` that determine when the call should be 
 - `scheduled_at`: A specific time to send the call.
 - `cron`: A cron expression for recurring calls.
 - `rrule`: An iCal `rrule` string for more complex recurring calls.
+- `hijri`: A date in the Islamic (Hijri) calendar.
 - `sequence` and `delta`: For event-driven call sequences.
 
 **Note:** Recurring calls (cron and rrule) and calls scheduled at midnight will be scheduled using the time slot scheduling feature, if it is configured.
@@ -111,6 +112,8 @@ The `content` of a call can be written in Markdown. This will be automatically c
 ### Example
 
 For a detailed example of a calls file, see [`examples/calls.yaml`](./examples/calls.yaml).
+
+For an example of scheduling calls based on the Islamic (Hijri) calendar, see [`examples/hijri_schedule.yaml`](./examples/hijri_schedule.yaml).
 
 ## Event-Driven Call Sequences
 

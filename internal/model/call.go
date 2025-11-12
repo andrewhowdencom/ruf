@@ -16,6 +16,8 @@ type Trigger struct {
 	DStart      string    `json:"dstart,omitempty" yaml:"dstart,omitempty"`
 	Delta       string    `json:"delta,omitempty" yaml:"delta,omitempty"`
 	Sequence    string    `json:"sequence,omitempty" yaml:"sequence,omitempty"`
+	Hijri       string    `json:"hijri,omitempty" yaml:"hijri,omitempty"`
+	Time        string    `json:"time,omitempty" yaml:"time,omitempty"`
 }
 
 // Call represents a message to be sent to a destination.

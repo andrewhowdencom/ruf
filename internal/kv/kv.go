@@ -27,6 +27,8 @@ const (
 	StatusFailed Status = "failed"
 	// StatusDeleted means the call has been deleted.
 	StatusDeleted Status = "deleted"
+	// StatusSkipped means the call has been skipped.
+	StatusSkipped Status = "skipped"
 )
 
 // SentMessage represents a message that has been sent.
@@ -67,6 +69,7 @@ type Storer interface {
 	// Scheduled call management
 	AddScheduledCall(call *ScheduledCall) error
 	GetScheduledCall(id string) (*ScheduledCall, error)
+	GetScheduledCallByShortID(shortID string) (*ScheduledCall, error)
 	ListScheduledCalls() ([]*ScheduledCall, error)
 	DeleteScheduledCall(id string) error
 	ClearScheduledCalls() error

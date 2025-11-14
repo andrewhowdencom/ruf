@@ -6,7 +6,6 @@ import (
 
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/worker"
 	"github.com/spf13/cobra"
@@ -14,9 +13,8 @@ import (
 )
 
 var (
-	datastoreNewStore = datastore.NewStore
-	slackNewClient    = slack.NewClient
-	emailNewClient    = email.NewClient
+	slackNewClient = slack.NewClient
+	emailNewClient = email.NewClient
 )
 
 // sendCmd represents the send command

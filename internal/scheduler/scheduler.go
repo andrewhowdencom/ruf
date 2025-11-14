@@ -86,6 +86,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 						newCall := createCallFromDefinition(callDef)
 						newCall.ScheduledAt = trigger.ScheduledAt
 						newCall.ID = fmt.Sprintf("%s:scheduled_at:%s:%s:%s", callDef.ID, trigger.ScheduledAt.Format(time.RFC3339), destination.Type, destination.To[0])
+						newCall.ShortID = kv.GenerateShortID(newCall.ID)
 						if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
 							slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
 							if err != nil {
@@ -129,6 +130,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 								newCall.ScheduledAt = slot
 							}
 							newCall.ID = fmt.Sprintf("%s:cron:%s:%s:%s:%s", callDef.ID, trigger.Cron, newCall.ScheduledAt.Format(time.RFC3339), destination.Type, destination.To[0])
+							newCall.ShortID = kv.GenerateShortID(newCall.ID)
 							newCall.Destinations = []model.Destination{destination}
 							expandedCalls = append(expandedCalls, newCall)
 						}
@@ -205,6 +207,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 								newCall.ScheduledAt = slot
 							}
 							newCall.ID = fmt.Sprintf("%s:rrule:%s:%s:%s:%s", callDef.ID, trigger.RRule, occurrence.Format(time.RFC3339), destination.Type, destination.To[0])
+							newCall.ShortID = kv.GenerateShortID(newCall.ID)
 							newCall.Destinations = []model.Destination{destination}
 							expandedCalls = append(expandedCalls, newCall)
 						}
@@ -313,6 +316,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 						newCall := createCallFromDefinition(callDef)
 						newCall.ScheduledAt = scheduledAt
 						newCall.ID = fmt.Sprintf("%s:hijri:%s:%s:%s:%s", callDef.ID, trigger.Hijri, scheduledAt.Format(time.RFC3339), destination.Type, destination.To[0])
+						newCall.ShortID = kv.GenerateShortID(newCall.ID)
 
 						if newCall.ScheduledAt.Hour() == 0 && newCall.ScheduledAt.Minute() == 0 && newCall.ScheduledAt.Second() == 0 {
 							slot, err := s.findNextAvailableSlot(newCall, destination, newCall.ScheduledAt, now)
@@ -343,6 +347,7 @@ func (s *Scheduler) Expand(sources []*sourcer.Source, now time.Time, before, aft
 								newCall.ScheduledAt = event.StartTime.Add(delta)
 								newCall.Destinations = append(newCall.Destinations, event.Destinations...)
 								newCall.ID = fmt.Sprintf("%s:sequence:%s:%s:%s:%s", callDef.ID, trigger.Sequence, event.StartTime.Format(time.RFC3339), destination.Type, destination.To[0])
+								newCall.ShortID = kv.GenerateShortID(newCall.ID)
 								newCall.Destinations = []model.Destination{destination}
 								expandedCalls = append(expandedCalls, newCall)
 							}

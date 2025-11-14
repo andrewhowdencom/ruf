@@ -13,4 +13,5 @@ var scheduledCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(scheduledCmd)
+	scheduledCmd.AddCommand(scheduledSkipCmd)
 }

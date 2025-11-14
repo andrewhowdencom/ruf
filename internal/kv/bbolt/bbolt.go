@@ -142,7 +142,13 @@ func (s *Store) GetScheduledCall(id string) (*kv.ScheduledCall, error) {
 		b := tx.Bucket(scheduledCallsBucket)
 		v := b.Get([]byte(id))
 		if v == nil {
-			return fmt.Errorf("%w: scheduled call with id '%s'", kv.ErrNotFound, id)
+			// If the full ID isn't found, try to find it by short ID.
+			found, err := s.getScheduledCallByShortID(tx, id)
+			if err != nil {
+				return err
+			}
+			call = *found
+			return nil
 		}
 		if err := json.Unmarshal(v, &call); err != nil {
 			return fmt.Errorf("%w: failed to unmarshal scheduled call: %w", kv.ErrSerializationFailed, err)
@@ -153,6 +159,47 @@ func (s *Store) GetScheduledCall(id string) (*kv.ScheduledCall, error) {
 		return nil, err
 	}
 	return &call, nil
+}
+
+func (s *Store) GetScheduledCallByShortID(shortID string) (*kv.ScheduledCall, error) {
+	var call *kv.ScheduledCall
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		found, err := s.getScheduledCallByShortID(tx, shortID)
+		if err != nil {
+			return err
+		}
+		call = found
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return call, nil
+}
+
+func (s *Store) getScheduledCallByShortID(tx *bbolt.Tx, shortID string) (*kv.ScheduledCall, error) {
+	var foundMessages []*kv.ScheduledCall
+	b := tx.Bucket(scheduledCallsBucket)
+	err := b.ForEach(func(k, v []byte) error {
+		var call kv.ScheduledCall
+		if err := json.Unmarshal(v, &call); err != nil {
+			return fmt.Errorf("%w: failed to unmarshal scheduled call: %w", kv.ErrSerializationFailed, err)
+		}
+		if strings.HasPrefix(call.ShortID, shortID) {
+			foundMessages = append(foundMessages, &call)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to iterate over scheduled calls: %w", kv.ErrDBOperationFailed, err)
+	}
+	if len(foundMessages) == 0 {
+		return nil, fmt.Errorf("%w: scheduled call with short id '%s'", kv.ErrNotFound, shortID)
+	}
+	if len(foundMessages) > 1 {
+		return nil, fmt.Errorf("%w: scheduled call with short id '%s'", kv.ErrAmbiguousID, shortID)
+	}
+	return foundMessages[0], nil
 }
 
 func (s *Store) ListScheduledCalls() ([]*kv.ScheduledCall, error) {
@@ -248,7 +295,7 @@ func (s *Store) HasBeenSent(campaignID, callID, destType, destination string) (b
 			if err := json.Unmarshal(v, &sm); err != nil {
 				return fmt.Errorf("%w: failed to unmarshal sent message: %w", kv.ErrSerializationFailed, err)
 			}
-			if sm.Status == kv.StatusSent || sm.Status == kv.StatusDeleted {
+			if sm.Status == kv.StatusSent || sm.Status == kv.StatusDeleted || sm.Status == kv.StatusSkipped {
 				sent = true
 			}
 		}

@@ -60,7 +60,44 @@ func (s *Store) AddScheduledCall(call *kv.ScheduledCall) error {
 }
 
 func (s *Store) GetScheduledCall(id string) (*kv.ScheduledCall, error) {
-	return nil, fmt.Errorf("not implemented")
+	ctx := context.Background()
+	doc, err := s.client.Collection("scheduled_calls").Doc(id).Get(ctx)
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			// If the full ID isn't found, try to find it by short ID.
+			return s.GetScheduledCallByShortID(id)
+		}
+		return nil, fmt.Errorf("%w: failed to get scheduled call: %w", kv.ErrDBOperationFailed, err)
+	}
+
+	var call kv.ScheduledCall
+	if err := doc.DataTo(&call); err != nil {
+		return nil, fmt.Errorf("%w: failed to unmarshal scheduled call: %w", kv.ErrSerializationFailed, err)
+	}
+	return &call, nil
+}
+
+func (s *Store) GetScheduledCallByShortID(shortID string) (*kv.ScheduledCall, error) {
+	ctx := context.Background()
+	end := shortID + "~"
+	iter := s.client.Collection("scheduled_calls").Where("ShortID", ">=", shortID).Where("ShortID", "<", end).Documents(ctx)
+	docs, err := iter.GetAll()
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to get scheduled call by short id: %w", kv.ErrDBOperationFailed, err)
+	}
+
+	if len(docs) == 0 {
+		return nil, fmt.Errorf("%w: message with short id '%s'", kv.ErrNotFound, shortID)
+	}
+	if len(docs) > 1 {
+		return nil, fmt.Errorf("%w: message with short id '%s'", kv.ErrAmbiguousID, shortID)
+	}
+
+	var call kv.ScheduledCall
+	if err := docs[0].DataTo(&call); err != nil {
+		return nil, fmt.Errorf("%w: failed to unmarshal scheduled call: %w", kv.ErrSerializationFailed, err)
+	}
+	return &call, nil
 }
 
 func (s *Store) ListScheduledCalls() ([]*kv.ScheduledCall, error) {
@@ -183,7 +220,7 @@ func (s *Store) HasBeenSent(campaignID, callID, destType, destination string) (b
 		return false, fmt.Errorf("%w: failed to unmarshal sent message: %w", kv.ErrSerializationFailed, err)
 	}
 
-	return sm.Status == kv.StatusSent || sm.Status == kv.StatusDeleted, nil
+	return sm.Status == kv.StatusSent || sm.Status == kv.StatusDeleted || sm.Status == kv.StatusSkipped, nil
 }
 
 // ListSentMessages retrieves all sent messages from the store.

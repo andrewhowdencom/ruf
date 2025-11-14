@@ -23,6 +23,7 @@ type Trigger struct {
 // Call represents a message to be sent to a destination.
 type Call struct {
 	ID           string        `json:"id" yaml:"id"`
+	ShortID      string        `json:"short_id,omitempty" yaml:"short_id,omitempty"`
 	Author       string        `json:"author,omitempty" yaml:"author,omitempty"`
 	Subject      string        `json:"subject,omitempty" yaml:"subject,omitempty"`
 	Content      string                 `json:"content" yaml:"content"`

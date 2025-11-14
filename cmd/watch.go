@@ -6,7 +6,6 @@ import (
 
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/http"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/scheduler"
@@ -30,7 +29,7 @@ func runWatch() error {
 
 	go http.Start(viper.GetInt("watch.port"))
 
-	store, err := datastore.NewStore(false)
+	store, err := datastoreNewStore(false)
 	if err != nil {
 		return fmt.Errorf("failed to create store: %w", err)
 	}

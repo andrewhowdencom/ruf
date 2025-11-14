@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
@@ -37,7 +36,7 @@ Example:
 
 		days, _ := cmd.Flags().GetInt("days")
 
-		store, err := datastore.NewStore(true)
+		store, err := datastoreNewStore(true)
 		if err != nil {
 			return fmt.Errorf("failed to create store: %w", err)
 		}

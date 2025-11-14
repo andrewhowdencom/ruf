@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/olekukonko/tablewriter"
@@ -23,7 +22,7 @@ var scheduledListCmd = &cobra.Command{
 		destType, _ := cmd.Flags().GetString("type")
 		destination, _ := cmd.Flags().GetString("destination")
 
-		store, err := datastore.NewStore(true)
+		store, err := datastoreNewStore(true)
 		if err != nil {
 			return fmt.Errorf("failed to create store: %w", err)
 		}

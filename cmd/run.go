@@ -6,7 +6,6 @@ import (
 
 	"github.com/andrewhowdencom/ruf/internal/clients/email"
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/andrewhowdencom/ruf/internal/worker"
@@ -27,7 +26,7 @@ var runCmd = &cobra.Command{
 func doRun() error {
 	slog.Debug("performing a single run")
 
-	store, err := datastore.NewStore(false)
+	store, err := datastoreNewStore(false)
 	if err != nil {
 		return fmt.Errorf("failed to create store: %w", err)
 	}

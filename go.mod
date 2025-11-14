@@ -10,6 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/gomarkdown/markdown v0.0.0-20250810172220-2e2c11897d1a
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
+	github.com/hablullah/go-hijri v1.0.2
 	github.com/olekukonko/tablewriter v1.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/slack-go/slack v0.17.3
@@ -64,7 +65,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
-	github.com/hablullah/go-hijri v1.0.2 // indirect
 	github.com/hablullah/go-juliandays v1.0.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

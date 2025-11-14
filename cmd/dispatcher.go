@@ -9,7 +9,7 @@ import (
 var dispatcherCmd = &cobra.Command{
 	Use:   "dispatcher",
 	Short: "Dispatcher commands for running and watching.",
-	Long:  `A parent command to group the 'run' and 'watchdog' dispatcher commands.`,
+	Long:  `A parent command to group the 'run' and 'watch' dispatcher commands.`,
 }
 
 func init() {

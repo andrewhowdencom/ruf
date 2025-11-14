@@ -26,16 +26,24 @@ func New(sourcer sourcer.Sourcer, interval time.Duration) *Poller {
 // Poll checks for updates in the sources and returns the calls from the changed URLs.
 func (p *Poller) Poll(urls []string) ([]*sourcer.Source, error) {
 	var allSources []*sourcer.Source
+	var lastErr error
 	for _, url := range urls {
 		source, err := p.pollURL(url)
 		if err != nil {
 			// If a source can't be found, we log the error and continue.
 			fmt.Printf("Error checking source %s: %v\n", url, err)
+			lastErr = err
 			continue
 		}
 		if source != nil {
 			allSources = append(allSources, source)
 		}
+	}
+
+	// If we failed to poll all sources, and we have no sources to return,
+	// then we should return the last error we saw.
+	if len(allSources) == 0 && lastErr != nil {
+		return nil, fmt.Errorf("failed to poll any sources: %w", lastErr)
 	}
 	return allSources, nil
 }

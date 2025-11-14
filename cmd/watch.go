@@ -15,20 +15,20 @@ import (
 	"github.com/spf13/viper"
 )
 
-// watchdogCmd represents the watchdog command
-var watchdogCmd = &cobra.Command{
-	Use:   "watchdog",
-	Short: "Run the watchdog to send calls",
-	Long:  `Run the watchdog to send calls.`,
+// watchCmd represents the watch command
+var watchCmd = &cobra.Command{
+	Use:   "watch",
+	Short: "Run the watcher to send calls",
+	Long:  `Run the watcher to send calls.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runWatchdog()
+		return runWatch()
 	},
 }
 
-func runWatchdog() error {
-	slog.Debug("running watchdog")
+func runWatch() error {
+	slog.Debug("running watch")
 
-	go http.Start(viper.GetInt("watchdog.port"))
+	go http.Start(viper.GetInt("watch.port"))
 
 	store, err := datastore.NewStore(false)
 	if err != nil {
@@ -52,7 +52,7 @@ func runWatchdog() error {
 		return fmt.Errorf("failed to build sourcer: %w", err)
 	}
 
-	refreshInterval := viper.GetDuration("watchdog.refresh_interval")
+	refreshInterval := viper.GetDuration("watch.refresh_interval")
 	p := poller.New(s, refreshInterval)
 
 	sched := scheduler.New(store)
@@ -64,7 +64,7 @@ func runWatchdog() error {
 }
 
 func init() {
-	dispatcherCmd.AddCommand(watchdogCmd)
-	viper.SetDefault("watchdog.refresh_interval", "1h")
-	viper.SetDefault("watchdog.port", 8080)
+	dispatcherCmd.AddCommand(watchCmd)
+	viper.SetDefault("watch.refresh_interval", "1h")
+	viper.SetDefault("watch.port", 8080)
 }

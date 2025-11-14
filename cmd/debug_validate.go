@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 
+	rufhttp "github.com/andrewhowdencom/ruf/internal/http"
 	"github.com/andrewhowdencom/ruf/internal/model"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 	"github.com/andrewhowdencom/ruf/internal/validator"
@@ -21,9 +22,10 @@ var debugValidateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		uri := args[0]
 
+		httpClient := rufhttp.NewClient()
 		fetcher := sourcer.NewCompositeFetcher()
-		fetcher.AddFetcher("http", sourcer.NewHTTPFetcher())
-		fetcher.AddFetcher("https", sourcer.NewHTTPFetcher())
+		fetcher.AddFetcher("http", sourcer.NewHTTPFetcher(httpClient))
+		fetcher.AddFetcher("https", sourcer.NewHTTPFetcher(httpClient))
 		fetcher.AddFetcher("file", sourcer.NewFileFetcher())
 		// Not including git fetcher for now, as it requires more configuration
 

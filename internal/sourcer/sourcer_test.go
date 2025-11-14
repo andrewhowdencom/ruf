@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	rufhttp "github.com/andrewhowdencom/ruf/internal/http"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +22,7 @@ func TestCompositeFetcher(t *testing.T) {
 	defer server.Close()
 
 	fetcher := NewCompositeFetcher()
-	fetcher.AddFetcher("http", NewHTTPFetcher())
+	fetcher.AddFetcher("http", NewHTTPFetcher(rufhttp.NewClient()))
 
 	data, state, err := fetcher.Fetch(server.URL)
 	assert.NoError(t, err)

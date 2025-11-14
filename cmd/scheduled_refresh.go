@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/poller"
 	"github.com/andrewhowdencom/ruf/internal/scheduler"
 	"github.com/spf13/cobra"
@@ -23,7 +22,7 @@ This command will:
 - Expand all call definitions into individual, scheduled instances.
 - Persist the new schedule to the datastore.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := datastore.NewStore(false)
+		store, err := datastoreNewStore(false)
 		if err != nil {
 			return fmt.Errorf("failed to create datastore: %w", err)
 		}

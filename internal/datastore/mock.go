@@ -54,7 +54,7 @@ func (s *MockStore) HasBeenSent(campaignID, callID, destType, destination string
 	defer s.mu.Unlock()
 	id := s.generateID(campaignID, callID, destType, destination)
 	sm, ok := s.sentMessages[id]
-	return ok && (sm.Status == kv.StatusSent || sm.Status == kv.StatusDeleted), nil
+	return ok && (sm.Status == kv.StatusSent || sm.Status == kv.StatusDeleted || sm.Status == kv.StatusSkipped), nil
 }
 
 func (s *MockStore) generateID(campaignID, callID, destType, destination string) string {
@@ -164,9 +164,32 @@ func (s *MockStore) GetScheduledCall(id string) (*kv.ScheduledCall, error) {
 	defer s.mu.Unlock()
 	call, ok := s.scheduledCalls[id]
 	if !ok {
-		return nil, fmt.Errorf("%w: scheduled call with id '%s'", kv.ErrNotFound, id)
+		// If the full ID isn't found, try to find it by short ID.
+		return s.getScheduledCallByShortID(id)
 	}
 	return call, nil
+}
+
+func (s *MockStore) GetScheduledCallByShortID(shortID string) (*kv.ScheduledCall, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getScheduledCallByShortID(shortID)
+}
+
+func (s *MockStore) getScheduledCallByShortID(shortID string) (*kv.ScheduledCall, error) {
+	var foundMessages []*kv.ScheduledCall
+	for _, call := range s.scheduledCalls {
+		if strings.HasPrefix(call.ShortID, shortID) {
+			foundMessages = append(foundMessages, call)
+		}
+	}
+	if len(foundMessages) == 0 {
+		return nil, fmt.Errorf("%w: scheduled call with short id '%s'", kv.ErrNotFound, shortID)
+	}
+	if len(foundMessages) > 1 {
+		return nil, fmt.Errorf("%w: scheduled call with short id '%s'", kv.ErrAmbiguousID, shortID)
+	}
+	return foundMessages[0], nil
 }
 
 func (s *MockStore) ListScheduledCalls() ([]*kv.ScheduledCall, error) {

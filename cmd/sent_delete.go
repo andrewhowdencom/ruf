@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/andrewhowdencom/ruf/internal/clients/slack"
-	"github.com/andrewhowdencom/ruf/internal/datastore"
 	"github.com/andrewhowdencom/ruf/internal/kv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -19,7 +18,7 @@ var sentDeleteCmd = &cobra.Command{
 	Short: "Delete a sent call.",
 	Long:  `Delete a sent call.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		store, err := datastore.NewStore(false)
+		store, err := datastoreNewStore(false)
 		if err != nil {
 			return fmt.Errorf("failed to create a new datastore: %w", err)
 		}

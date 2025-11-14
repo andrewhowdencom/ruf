@@ -66,9 +66,9 @@ type HTTPFetcher struct {
 }
 
 // NewHTTPFetcher creates a new HTTPFetcher.
-func NewHTTPFetcher() *HTTPFetcher {
+func NewHTTPFetcher(client *http.Client) *HTTPFetcher {
 	return &HTTPFetcher{
-		client: &http.Client{},
+		client: client,
 	}
 }
 

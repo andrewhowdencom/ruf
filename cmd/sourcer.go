@@ -5,14 +5,17 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/andrewhowdencom/ruf/internal/http"
 	"github.com/andrewhowdencom/ruf/internal/sourcer"
 )
 
 // buildSourcer creates a new sourcer with the default fetchers.
 func buildSourcer() (sourcer.Sourcer, error) {
+	httpClient := http.NewClient()
+
 	fetcher := sourcer.NewCompositeFetcher()
-	fetcher.AddFetcher("http", sourcer.NewHTTPFetcher())
-	fetcher.AddFetcher("https", sourcer.NewHTTPFetcher())
+	fetcher.AddFetcher("http", sourcer.NewHTTPFetcher(httpClient))
+	fetcher.AddFetcher("https", sourcer.NewHTTPFetcher(httpClient))
 	fetcher.AddFetcher("file", sourcer.NewFileFetcher())
 	fetcher.AddFetcher("git", sourcer.NewGitFetcher())
 
